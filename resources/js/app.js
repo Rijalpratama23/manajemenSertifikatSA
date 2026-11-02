@@ -27,3 +27,30 @@ if (forgotPasswordButton instanceof HTMLButtonElement && recoveryMessage instanc
         recoveryMessage.hidden = !recoveryMessage.hidden;
     });
 }
+
+const periodPicker = document.querySelector('[data-period-picker]');
+
+if (periodPicker instanceof HTMLFormElement) {
+    const periodInput = periodPicker.querySelector('input[type="month"]');
+    const openMonthPickerButton = periodPicker.querySelector('[data-open-month-picker]');
+
+    if (periodInput instanceof HTMLInputElement) {
+        periodInput.addEventListener('change', () => {
+            if (periodInput.value) {
+                periodPicker.requestSubmit();
+            }
+        });
+
+        if (openMonthPickerButton instanceof HTMLButtonElement) {
+            openMonthPickerButton.addEventListener('click', () => {
+                if ('showPicker' in periodInput) {
+                    periodInput.showPicker();
+                    return;
+                }
+
+                periodInput.focus();
+                periodInput.click();
+            });
+        }
+    }
+}
