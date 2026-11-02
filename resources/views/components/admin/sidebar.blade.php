@@ -4,19 +4,27 @@
     </a>
 
     <nav class="admin-navigation" aria-label="Menu utama">
-        <a class="admin-nav-item is-active" href="{{ route('dashboard') }}" aria-current="page">
+        <a
+            class="admin-nav-item {{ request()->routeIs('dashboard') ? 'is-active' : '' }}"
+            href="{{ route('dashboard') }}"
+            @if (request()->routeIs('dashboard')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M3.5 10.5 12 3.8l8.5 6.7v9a1 1 0 0 1-1 1h-5.2v-6.2H9.7v6.2H4.5a1 1 0 0 1-1-1v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             </svg>
             <span>Dashboard</span>
         </a>
-        <span class="admin-nav-item is-unavailable" aria-disabled="true">
+        <a
+            class="admin-nav-item {{ request()->routeIs('participants.*') ? 'is-active' : '' }}"
+            href="{{ route('participants.index') }}"
+            @if (request()->routeIs('participants.*')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
                 <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m2 3.2a5 5 0 0 1 2.5 4.3V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
             <span>Data Peserta</span>
-        </span>
+        </a>
         <span class="admin-nav-item is-unavailable" aria-disabled="true">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 3.5h8l4.5 4.6v12.4H6V3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>

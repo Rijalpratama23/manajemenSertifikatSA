@@ -54,3 +54,40 @@ if (periodPicker instanceof HTMLFormElement) {
         }
     }
 }
+
+document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    if (form instanceof HTMLFormElement) {
+        form.addEventListener('submit', (event) => {
+            if (!window.confirm(form.dataset.confirm ?? 'Lanjutkan tindakan ini?')) {
+                event.preventDefault();
+            }
+        });
+    }
+});
+
+const participantModal = document.querySelector('[data-participant-modal]');
+const openParticipantModalButton = document.querySelector('[data-open-participant-modal]');
+
+if (participantModal instanceof HTMLDialogElement) {
+    if (openParticipantModalButton instanceof HTMLButtonElement) {
+        openParticipantModalButton.addEventListener('click', () => {
+            participantModal.showModal();
+            participantModal.querySelector('input:not([type="hidden"])')?.focus();
+        });
+    }
+
+    participantModal.querySelectorAll('[data-close-participant-modal]').forEach((button) => {
+        button.addEventListener('click', () => participantModal.close());
+    });
+
+    participantModal.addEventListener('click', (event) => {
+        if (event.target === participantModal) {
+            participantModal.close();
+        }
+    });
+
+    if (participantModal.hasAttribute('data-open-on-load')) {
+        participantModal.showModal();
+        participantModal.querySelector('input:not([type="hidden"])')?.focus();
+    }
+}
