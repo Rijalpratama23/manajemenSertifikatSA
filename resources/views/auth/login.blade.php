@@ -1,13 +1,9 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#eaf1f1">
-    <title>Masuk - {{ config('app.name', 'Sukarobot Academy') }}</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
-<body class="login-page" style="--login-background-image: url('{{ asset('images/login-ilustrationss.png') }}')">
+<x-auth.layout
+    title="Masuk - {{ config('app.name', 'Sukarobot Academy') }}"
+    theme-color="#eaf1f1"
+    body-class="login-page"
+    :body-style="'--login-background-image: url(' . asset('images/login-ilustrationss.png') . ')'"
+>
     <main class="login-layout">
         <section class="login-panel" aria-labelledby="welcome-title">
             <div class="login-card">
@@ -26,49 +22,37 @@
                 <form class="login-form" method="POST" action="{{ route('login.store') }}" autocomplete="off">
                     @csrf
 
-                    <div class="form-field">
-                        <label for="username">Username</label>
-                        <div class="input-wrap @error('username') input-wrap-error @enderror">
+                    <x-forms.field
+                        id="username"
+                        name="username"
+                        label="Username"
+                        placeholder="Masukan Username..."
+                        :value="old('username')"
+                        :maxlength="50"
+                    >
+                        <x-slot:icon>
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/>
                                 <path d="M5.5 20v-1.6a6.5 6.5 0 0 1 13 0V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                             </svg>
-                            <input
-                                id="username"
-                                name="username"
-                                type="text"
-                                placeholder="Masukan Username..."
-                                value="{{ old('username') }}"
-                                autocomplete="off"
-                                maxlength="50"
-                                required
-                                aria-invalid="{{ $errors->has('username') ? 'true' : 'false' }}"
-                                aria-describedby="{{ $errors->has('username') ? 'username-error' : '' }}"
-                            >
-                        </div>
-                        @error('username')
-                            <p class="field-error" id="username-error">{{ $message }}</p>
-                        @enderror
-                    </div>
+                        </x-slot:icon>
+                    </x-forms.field>
 
-                    <div class="form-field">
-                        <label for="password">Password</label>
-                        <div class="input-wrap @error('password') input-wrap-error @enderror">
+                    <x-forms.field
+                        id="password"
+                        name="password"
+                        label="Password"
+                        type="password"
+                        placeholder="Masukan Password..."
+                    >
+                        <x-slot:icon>
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <rect x="5" y="10" width="14" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/>
                                 <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                                 <circle cx="12" cy="15.5" r="1.2" fill="currentColor"/>
                             </svg>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                placeholder="Masukan Password..."
-                                autocomplete="off"
-                                required
-                                aria-invalid="{{ $errors->has('password') ? 'true' : 'false' }}"
-                                aria-describedby="{{ $errors->has('password') ? 'password-error' : '' }}"
-                            >
+                        </x-slot:icon>
+                        <x-slot:append>
                             <button class="password-toggle" type="button" aria-label="Tampilkan password" aria-pressed="false" data-password-toggle>
                                 <svg class="eye-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                     <g data-eye-visible>
@@ -81,11 +65,8 @@
                                     </g>
                                 </svg>
                             </button>
-                        </div>
-                        @error('password')
-                            <p class="field-error" id="password-error">{{ $message }}</p>
-                        @enderror
-                    </div>
+                        </x-slot:append>
+                    </x-forms.field>
 
                     <div class="forgot-password-row">
                         <button class="forgot-password" type="button" data-forgot-password>Lupa Password?</button>
@@ -101,5 +82,4 @@
             </div>
         </section>
     </main>
-</body>
-</html>
+</x-auth.layout>
