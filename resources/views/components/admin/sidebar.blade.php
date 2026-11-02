@@ -25,19 +25,27 @@
             </svg>
             <span>Data Peserta</span>
         </a>
-        <span class="admin-nav-item is-unavailable" aria-disabled="true">
+        <a
+            class="admin-nav-item {{ request()->routeIs('certificate-types.*') ? 'is-active' : '' }}"
+            href="{{ route('certificate-types.index') }}"
+            @if (request()->routeIs('certificate-types.*')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M6 3.5h8l4.5 4.6v12.4H6V3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                 <path d="M14 3.8v4.7h4.2M9 12h6m-6 3.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
             <span>Jenis Sertifikat</span>
-        </span>
-        <span class="admin-nav-item is-unavailable" aria-disabled="true">
+        </a>
+        <a
+            class="admin-nav-item {{ request()->routeIs('certificate-templates.*') ? 'is-active' : '' }}"
+            href="{{ route('certificate-templates.index') }}"
+            @if (request()->routeIs('certificate-templates.*')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M4 4.5h16v15H4v-15Zm0 5h16M9 9.5v10" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             </svg>
             <span>Template Sertifikat</span>
-        </span>
+        </a>
         <span class="admin-nav-item is-unavailable" aria-disabled="true">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M7 8V4h10v4m-10 9H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10-4h10v7H7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>

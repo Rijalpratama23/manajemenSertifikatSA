@@ -157,8 +157,8 @@ docs/                    Dokumen requirement, use case, flowchart, ERD
 - [x] Perencanaan, analisis kebutuhan, dan perancangan (use case, flowchart, ERD)
 - [x] Struktur database, model, dan seeder
 - [x] F-01 Login dan logout admin
-- [ ] F-03, F-04 Jenis dan template sertifikat
-- [ ] F-02 Data peserta (CRUD, impor Excel)
+- [x] F-03, F-04 Jenis dan template sertifikat
+- [x] F-02 Data peserta (CRUD, impor Excel)
 - [ ] F-06, F-05, F-07 Penomoran, penerbitan, PDF + QR
 - [ ] F-08, F-12 Daftar sertifikat admin, pembatalan dan terbit ulang
 - [ ] F-11 Verifikasi publik

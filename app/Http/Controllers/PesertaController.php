@@ -8,6 +8,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
 class PesertaController extends Controller
@@ -18,6 +19,7 @@ class PesertaController extends Controller
             'search' => ['nullable', 'string', 'max:150'],
             'per_page' => ['nullable', Rule::in(['10', '25', '50'])],
             'sort' => ['nullable', Rule::in(['newest', 'oldest'])],
+            'edit' => ['nullable', 'integer', Rule::exists('peserta', 'id_peserta')],
         ]);
         $search = trim($validated['search'] ?? '');
         $perPage = (int) ($validated['per_page'] ?? 10);
@@ -37,7 +39,11 @@ class PesertaController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        return view('participants.index', compact('participants', 'search', 'perPage', 'sort'));
+        $editParticipant = isset($validated['edit'])
+            ? Peserta::query()->findOrFail($validated['edit'])
+            : null;
+
+        return view('participants.index', compact('participants', 'search', 'perPage', 'sort', 'editParticipant'));
     }
 
     public function create(): View
@@ -55,7 +61,12 @@ class PesertaController extends Controller
 
     public function show(Peserta $peserta): View
     {
-        $peserta->loadCount('sertifikat');
+        $peserta->loadCount('sertifikat')
+            ->load([
+                'sertifikat' => fn ($query) => $query
+                    ->with('jenis:id_jenis,nama_jenis')
+                    ->orderByDesc('tanggal_terbit'),
+            ]);
 
         return view('participants.show', compact('peserta'));
     }
@@ -67,8 +78,16 @@ class PesertaController extends Controller
 
     public function update(Request $request, Peserta $peserta): RedirectResponse
     {
-        $validated = $request->validate($this->participantRules());
-        $peserta->update($validated);
+        $validator = Validator::make($request->all(), $this->participantRules());
+
+        if ($validator->fails()) {
+            return redirect()
+                ->route('participants.index', ['edit' => $peserta->getKey()])
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $peserta->update($validator->validated());
 
         return redirect()->route('participants.index')->with('success', 'Data peserta berhasil diperbarui.');
     }

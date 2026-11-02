@@ -14,5 +14,6 @@
     <main class="admin-main">
         {{ $slot }}
     </main>
+    <x-admin.delete-confirmation />
 </body>
 </html>

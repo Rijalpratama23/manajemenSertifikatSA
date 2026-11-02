@@ -2,7 +2,7 @@
     class="participant-modal"
     aria-labelledby="participant-modal-title"
     data-participant-modal
-    @if ($errors->hasAny(['nama', 'email', 'asal_instansi'])) data-open-on-load @endif
+    @if (! request()->filled('edit') && $errors->hasAny(['nama', 'email', 'asal_instansi'])) data-open-on-load @endif
 >
     <div class="participant-modal-content">
         <header class="participant-modal-header">

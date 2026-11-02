@@ -5,6 +5,7 @@
     'cancelUrl',
     'method' => 'POST',
     'modal' => false,
+    'idPrefix' => '',
 ])
 
 <form class="participant-form {{ $modal ? 'participant-modal-form' : '' }}" method="POST" action="{{ $action }}">
@@ -21,6 +22,7 @@
         :value="old('nama', $participant?->nama)"
         :maxlength="150"
         hint="Wajib diisi • Maks. 150 karakter"
+        :id-prefix="$idPrefix"
     />
 
     <x-forms.field
@@ -32,6 +34,7 @@
         :value="old('email', $participant?->email)"
         :maxlength="150"
         hint="Wajib diisi • Format email yang benar • Maks. 150 karakter"
+        :id-prefix="$idPrefix"
     />
 
     <x-forms.field
@@ -43,6 +46,7 @@
         :maxlength="150"
         :required="false"
         hint="Opsional • Maks. 150 karakter"
+        :id-prefix="$idPrefix"
     />
 
     <div class="participant-form-actions {{ $modal ? 'participant-modal-actions' : '' }}">
