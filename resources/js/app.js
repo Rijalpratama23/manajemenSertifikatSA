@@ -1,5 +1,60 @@
 import './bootstrap';
 
+document.querySelectorAll('[data-app-toast]').forEach((toast) => {
+    if (!(toast instanceof HTMLElement)) {
+        return;
+    }
+
+    let remainingTime = 5000;
+    let timerStartedAt = Date.now();
+    let isPaused = false;
+    let isDismissed = false;
+    let dismissTimer;
+    const dismissToast = () => {
+        isDismissed = true;
+        window.clearTimeout(dismissTimer);
+        toast.classList.add('is-dismissed');
+        window.setTimeout(() => toast.remove(), 250);
+    };
+    const resumeDismissTimer = () => {
+        if (!isPaused || isDismissed) {
+            return;
+        }
+
+        isPaused = false;
+        timerStartedAt = Date.now();
+        dismissTimer = window.setTimeout(dismissToast, remainingTime);
+    };
+    const pauseDismissTimer = () => {
+        if (isPaused || isDismissed) {
+            return;
+        }
+
+        isPaused = true;
+        window.clearTimeout(dismissTimer);
+        remainingTime = Math.max(0, remainingTime - (Date.now() - timerStartedAt));
+    };
+    dismissTimer = window.setTimeout(dismissToast, remainingTime);
+
+    const dismissButton = toast.querySelector('[data-dismiss-toast]');
+    dismissButton?.addEventListener('click', () => {
+        dismissToast();
+    });
+
+    toast.addEventListener('mouseenter', pauseDismissTimer);
+    toast.addEventListener('mouseleave', () => {
+        if (!toast.contains(document.activeElement)) {
+            resumeDismissTimer();
+        }
+    });
+    toast.addEventListener('focusin', pauseDismissTimer);
+    toast.addEventListener('focusout', (event) => {
+        if (!toast.contains(event.relatedTarget) && !toast.matches(':hover')) {
+            resumeDismissTimer();
+        }
+    });
+});
+
 const passwordToggle = document.querySelector('[data-password-toggle]');
 const passwordInput = document.querySelector('#password');
 
@@ -482,6 +537,14 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
     const previewDialog = document.querySelector('[data-template-form-preview]');
     const previewCanvas = previewDialog?.querySelector('[data-template-preview-canvas]');
     let previewObjectUrl = null;
+    let fileSelectionId = 0;
+    const initialFileName = fileName instanceof HTMLElement ? fileName.textContent.trim() : '';
+    const initialPreviewSrc = previewImage instanceof HTMLImageElement
+        ? previewImage.getAttribute('src') ?? ''
+        : '';
+    const hasInitialPreview = previewImage instanceof HTMLImageElement
+        && !previewImage.hidden
+        && initialPreviewSrc !== '';
 
     if (nameInput instanceof HTMLInputElement && nameCount instanceof HTMLElement) {
         const updateNameCount = () => {
@@ -499,48 +562,75 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
         && previewButton instanceof HTMLButtonElement
         && clientError instanceof HTMLElement
     ) {
+        const clearPreviewObjectUrl = () => {
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+                previewObjectUrl = null;
+            }
+        };
+        const restoreInitialPreview = () => {
+            fileName.textContent = initialFileName;
+            if (initialPreviewSrc) {
+                previewImage.src = initialPreviewSrc;
+            } else {
+                previewImage.removeAttribute('src');
+            }
+            previewImage.hidden = !hasInitialPreview;
+            previewPlaceholder.hidden = hasInitialPreview;
+            previewButton.disabled = !hasInitialPreview;
+        };
+        const rejectFile = (message) => {
+            clearPreviewObjectUrl();
+            fileInput.value = '';
+            restoreInitialPreview();
+            clientError.textContent = message;
+            clientError.hidden = false;
+        };
+
         fileInput.addEventListener('change', () => {
+            const selectionId = ++fileSelectionId;
             const file = fileInput.files?.[0];
             clientError.hidden = true;
             clientError.textContent = '';
+            clearPreviewObjectUrl();
+
             if (!file) {
+                restoreInitialPreview();
                 return;
             }
 
             if (file.size > 5 * 1024 * 1024) {
-                fileInput.value = '';
-                clientError.textContent = 'Ukuran desain tidak boleh melebihi 5 MB.';
-                clientError.hidden = false;
+                rejectFile('Ukuran gambar melebihi batas 5 MB. Pilih file yang lebih kecil.');
                 return;
             }
 
-            if (previewObjectUrl) {
-                URL.revokeObjectURL(previewObjectUrl);
-            }
-            previewObjectUrl = URL.createObjectURL(file);
+            const objectUrl = URL.createObjectURL(file);
+            previewObjectUrl = objectUrl;
             const image = new Image();
             image.addEventListener('load', () => {
-                if (image.naturalWidth < 1754 || image.naturalHeight < 1240 || image.naturalWidth <= image.naturalHeight) {
-                    URL.revokeObjectURL(previewObjectUrl);
-                    previewObjectUrl = null;
-                    fileInput.value = '';
-                    clientError.textContent = 'Desain harus berorientasi lanskap dengan ukuran minimal 1754 × 1240 piksel.';
-                    clientError.hidden = false;
+                if (selectionId !== fileSelectionId || fileInput.files?.[0] !== file) {
                     return;
                 }
 
-                previewImage.src = image.src;
+                if (image.naturalWidth < 1403 || image.naturalHeight < 992 || image.naturalWidth <= image.naturalHeight) {
+                    rejectFile('Ukuran atau orientasi gambar tidak sesuai. Gunakan gambar lanskap minimal 1403 × 992 piksel.');
+                    return;
+                }
+
+                previewImage.src = objectUrl;
                 previewImage.hidden = false;
                 previewPlaceholder.hidden = true;
                 previewButton.disabled = false;
                 fileName.textContent = file.name;
             });
             image.addEventListener('error', () => {
-                fileInput.value = '';
-                clientError.textContent = 'Berkas desain tidak dapat dibaca sebagai gambar PNG atau JPG.';
-                clientError.hidden = false;
+                if (selectionId !== fileSelectionId || fileInput.files?.[0] !== file) {
+                    return;
+                }
+
+                rejectFile('Gambar tidak dapat dibaca. Pilih file PNG atau JPG yang valid.');
             });
-            image.src = previewObjectUrl;
+            image.src = objectUrl;
         });
     }
 
@@ -710,6 +800,257 @@ if (certificateTemplatePreview instanceof HTMLDialogElement) {
     certificateTemplatePreview.querySelector('[data-close-template-preview]')?.addEventListener('click', () => {
         certificateTemplatePreview.close();
     });
+}
+
+const certificateIssuanceForm = document.querySelector('[data-certificate-issuance-form]');
+
+document.querySelectorAll('[data-copy-certificate-number]').forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+        return;
+    }
+
+    button.addEventListener('click', () => {
+        const number = button.dataset.copyCertificateNumber;
+        if (!number || !navigator.clipboard?.writeText) {
+            window.alert('Penyalinan otomatis tidak tersedia. Silakan salin nomor sertifikat secara manual.');
+            return;
+        }
+
+        navigator.clipboard.writeText(number)
+            .then(() => {
+                button.textContent = 'Tersalin';
+                window.setTimeout(() => {
+                    button.textContent = 'Salin nomor';
+                }, 1800);
+            })
+            .catch(() => {
+                window.alert('Nomor sertifikat gagal disalin. Silakan salin nomor secara manual.');
+            });
+    });
+});
+
+document.querySelectorAll('[data-certificate-archive-filter]').forEach((filter) => {
+    if (filter instanceof HTMLSelectElement) {
+        filter.addEventListener('change', () => {
+            if (filter.form instanceof HTMLFormElement) {
+                filter.form.requestSubmit();
+            }
+        });
+    }
+});
+
+if (certificateIssuanceForm instanceof HTMLFormElement) {
+    const issuanceConfirmation = document.querySelector('[data-certificate-issuance-confirmation]');
+    const confirmParticipant = issuanceConfirmation?.querySelector('[data-issuance-confirm-participant]');
+    const confirmType = issuanceConfirmation?.querySelector('[data-issuance-confirm-type]');
+    const confirmPeriod = issuanceConfirmation?.querySelector('[data-issuance-confirm-period]');
+    const confirmTemplate = issuanceConfirmation?.querySelector('[data-issuance-confirm-template]');
+    const confirmCancel = issuanceConfirmation?.querySelector('[data-issuance-confirm-cancel]');
+    const confirmSubmit = issuanceConfirmation?.querySelector('[data-issuance-confirm-submit]');
+    let confirmedIssuance = false;
+
+    if (
+        issuanceConfirmation instanceof HTMLDialogElement
+        && confirmParticipant instanceof HTMLElement
+        && confirmType instanceof HTMLElement
+        && confirmPeriod instanceof HTMLElement
+        && confirmTemplate instanceof HTMLElement
+        && confirmCancel instanceof HTMLButtonElement
+        && confirmSubmit instanceof HTMLButtonElement
+    ) {
+        const getSelectedText = (selector) => {
+            const select = certificateIssuanceForm.querySelector(selector);
+            return select instanceof HTMLSelectElement
+                ? select.selectedOptions[0]?.textContent?.trim() ?? ''
+                : '';
+        };
+        const getTemplateName = () => {
+            const option = certificateIssuanceForm.querySelector('[data-issuance-type]')?.selectedOptions[0];
+            return option instanceof HTMLOptionElement ? option.dataset.templateName ?? '' : '';
+        };
+
+        certificateIssuanceForm.addEventListener('submit', (event) => {
+            if (confirmedIssuance) {
+                confirmedIssuance = false;
+                return;
+            }
+
+            event.preventDefault();
+            const startDate = certificateIssuanceForm.querySelector('[data-issuance-start]');
+            const endDate = certificateIssuanceForm.querySelector('[data-issuance-end]');
+            const period = startDate instanceof HTMLInputElement && endDate instanceof HTMLInputElement
+                ? [startDate.value, endDate.value].filter(Boolean).map(formatIssuanceDate).join(' - ')
+                : '';
+
+            confirmParticipant.textContent = getSelectedText('[data-issuance-participant]') || '-';
+            confirmType.textContent = getSelectedText('[data-issuance-type]') || '-';
+            confirmPeriod.textContent = period || '-';
+            confirmTemplate.textContent = getTemplateName() || '-';
+            issuanceConfirmation.showModal();
+            confirmCancel.focus();
+        });
+
+        confirmCancel.addEventListener('click', () => issuanceConfirmation.close());
+        confirmSubmit.addEventListener('click', () => {
+            if (!certificateIssuanceForm.reportValidity()) {
+                issuanceConfirmation.close();
+                return;
+            }
+
+            confirmedIssuance = true;
+            issuanceConfirmation.close();
+            certificateIssuanceForm.requestSubmit();
+        });
+        issuanceConfirmation.addEventListener('click', (event) => {
+            if (event.target === issuanceConfirmation) {
+                issuanceConfirmation.close();
+            }
+        });
+        issuanceConfirmation.addEventListener('cancel', () => {
+            confirmedIssuance = false;
+        });
+    }
+
+    const participantSelect = certificateIssuanceForm.querySelector('[data-issuance-participant]');
+    const participantInfo = certificateIssuanceForm.querySelector('[data-issuance-participant-info]');
+    const participantEmail = certificateIssuanceForm.querySelector('[data-participant-email]');
+    const participantInstitution = certificateIssuanceForm.querySelector('[data-participant-institution]');
+    const participantCertificateCount = certificateIssuanceForm.querySelector('[data-participant-certificate-count]');
+    const typeSelect = certificateIssuanceForm.querySelector('[data-issuance-type]');
+    const templateId = certificateIssuanceForm.querySelector('[data-issuance-template-id]');
+    const templateUsed = certificateIssuanceForm.querySelector('[data-issuance-template-used]');
+    const templateBadge = certificateIssuanceForm.querySelector('[data-issuance-template-badge]');
+    const certificatePreview = certificateIssuanceForm.querySelector('[data-issuance-certificate]');
+    const namePreview = certificateIssuanceForm.querySelector('[data-preview-participant]');
+    const typePreview = certificateIssuanceForm.querySelector('[data-preview-type]');
+    const periodPreview = certificateIssuanceForm.querySelector('[data-preview-period]');
+    const durationPreview = certificateIssuanceForm.querySelector('[data-preview-duration]');
+    const scorePreview = certificateIssuanceForm.querySelector('[data-preview-score]');
+    const dateStart = certificateIssuanceForm.querySelector('[data-issuance-start]');
+    const dateEnd = certificateIssuanceForm.querySelector('[data-issuance-end]');
+    const durationInput = certificateIssuanceForm.querySelector('[data-issuance-duration]');
+    const scoreInput = certificateIssuanceForm.querySelector('[data-issuance-score]');
+    const predicateInput = certificateIssuanceForm.querySelector('[data-issuance-predicate]');
+    const formatIssuanceDate = (value) => {
+        if (!value) {
+            return '';
+        }
+
+        const date = new Date(`${value}T00:00:00`);
+        return new Intl.DateTimeFormat('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        }).format(date);
+    };
+
+    const updateParticipant = () => {
+        if (
+            !(participantSelect instanceof HTMLSelectElement)
+            || !(participantInfo instanceof HTMLElement)
+            || !(participantEmail instanceof HTMLElement)
+            || !(participantInstitution instanceof HTMLElement)
+            || !(participantCertificateCount instanceof HTMLElement)
+            || !(namePreview instanceof HTMLElement)
+        ) {
+            return;
+        }
+
+        const option = participantSelect.selectedOptions[0];
+        if (!option || !option.value) {
+            participantInfo.hidden = true;
+            namePreview.textContent = 'Nama Peserta';
+            return;
+        }
+
+        participantInfo.hidden = false;
+        participantEmail.textContent = option.dataset.email ?? '';
+        participantInstitution.textContent = option.dataset.institution ?? 'Asal Sekolah/Universitas belum diisi';
+        const count = Number(option.dataset.certificateCount ?? '0');
+        participantCertificateCount.textContent = ` · ${count} sertifikat sebelumnya`;
+        namePreview.textContent = option.textContent?.trim() ?? 'Nama Peserta';
+    };
+
+    const updatePreview = () => {
+        if (
+            !(typeSelect instanceof HTMLSelectElement)
+            || !(templateId instanceof HTMLInputElement)
+            || !(templateUsed instanceof HTMLElement)
+            || !(templateBadge instanceof HTMLElement)
+            || !(certificatePreview instanceof HTMLElement)
+            || !(typePreview instanceof HTMLElement)
+        ) {
+            return;
+        }
+
+        const option = typeSelect.selectedOptions[0];
+        const selectedTemplateId = option?.dataset.templateId ?? '';
+        const selectedTemplateName = option?.dataset.templateName ?? '';
+        const selectedTypeName = option?.dataset.typeName ?? 'Jenis Sertifikat';
+        const templateUrl = option?.dataset.templateUrl ?? '';
+        templateId.value = selectedTemplateId;
+        typePreview.textContent = selectedTypeName;
+        templateBadge.textContent = selectedTemplateName || 'Pilih jenis';
+        templateUsed.textContent = selectedTemplateName
+            ? `Template yang dipakai: ${selectedTemplateName}`
+            : 'Pilih jenis sertifikat untuk menentukan template aktif.';
+        templateUsed.hidden = !selectedTemplateName;
+        certificatePreview.style.backgroundImage = templateUrl
+            ? `linear-gradient(rgb(255 255 255 / 27%), rgb(255 255 255 / 27%)), url("${templateUrl}")`
+            : 'none';
+
+        if (periodPreview instanceof HTMLElement && dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {
+            const start = formatIssuanceDate(dateStart.value);
+            const end = formatIssuanceDate(dateEnd.value);
+            periodPreview.textContent = start && end ? `periode ${start} – ${end}` : '';
+        }
+
+        if (durationPreview instanceof HTMLElement && durationInput instanceof HTMLInputElement) {
+            durationPreview.textContent = durationInput.value.trim()
+                ? `(${durationInput.value.trim()})`
+                : '';
+        }
+
+        if (scorePreview instanceof HTMLElement) {
+            const score = scoreInput instanceof HTMLInputElement ? scoreInput.value.trim() : '';
+            const predicate = predicateInput instanceof HTMLInputElement ? predicateInput.value.trim() : '';
+            scorePreview.textContent = [score ? `Nilai ${score}` : '', predicate]
+                .filter(Boolean)
+                .join(' · ');
+        }
+    };
+
+    if (participantSelect instanceof HTMLSelectElement) {
+        participantSelect.addEventListener('change', updateParticipant);
+        updateParticipant();
+    }
+
+    if (typeSelect instanceof HTMLSelectElement) {
+        typeSelect.addEventListener('change', updatePreview);
+        updatePreview();
+    }
+
+    [
+        dateStart,
+        dateEnd,
+        durationInput,
+        scoreInput,
+        predicateInput,
+    ].forEach((input) => {
+        input?.addEventListener('input', updatePreview);
+        input?.addEventListener('change', updatePreview);
+    });
+
+    if (dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {
+        dateStart.addEventListener('change', () => {
+            dateEnd.min = dateStart.value;
+            if (dateEnd.value && dateEnd.value < dateStart.value) {
+                dateEnd.value = '';
+            }
+            updatePreview();
+        });
+        dateEnd.min = dateStart.value;
+    }
 }
 
 document.querySelectorAll('[data-participant-modal], [data-edit-participant-modal], [data-certificate-type-modal]').forEach((modal) => {

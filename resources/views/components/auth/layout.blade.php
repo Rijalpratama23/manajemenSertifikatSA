@@ -17,6 +17,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body @if ($bodyClass) class="{{ $bodyClass }}" @endif @if ($bodyStyle) style="{{ $bodyStyle }}" @endif>
+    <x-ui.flash-toast />
     {{ $slot }}
 </body>
 </html>

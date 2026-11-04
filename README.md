@@ -99,7 +99,6 @@ Relasi utama: jenis → template, jenis → sertifikat, template → sertifikat,
 ## Menunggu konfirmasi perusahaan
 
 - Data pendamping pencarian peserta (email atau tanggal lahir). Saat ini dipakai **email**.
-- Format penomoran sertifikat.
 - Bentuk tanda tangan (gambar atau tanda tangan elektronik tersertifikasi).
 - Cara dan pihak yang menyampaikan nomor ke peserta.
 - Data yang tampil di halaman verifikasi (nama lengkap atau disamarkan).
@@ -159,15 +158,19 @@ docs/                    Dokumen requirement, use case, flowchart, ERD
 - [x] F-01 Login dan logout admin
 - [x] F-03, F-04 Jenis dan template sertifikat
 - [x] F-02 Data peserta (CRUD, impor Excel)
-- [ ] F-06, F-05, F-07 Penomoran, penerbitan, PDF + QR
-- [ ] F-08, F-12 Daftar sertifikat admin, pembatalan dan terbit ulang
-- [ ] F-11 Verifikasi publik
+- [x] F-06, F-05, F-07 Penomoran, penerbitan, PDF + QR
+- [x] F-08, F-12 Arsip sertifikat admin, pencarian/filter, pembatalan dan alur terbit ulang
+- [x] F-11 Verifikasi publik
 - [ ] F-09, F-10 Pencarian dan unduh peserta (dengan rate limiting)
 - [ ] Backup database berkala dan pengujian
 
 ### Login admin
 
 Halaman login tersedia di `/login`. Akun admin awal dibuat melalui seeder dengan nilai `ADMIN_USERNAME` dan `ADMIN_PASSWORD` dari `.env`. Setelah berhasil masuk, admin diarahkan ke dashboard sementara; fitur pemulihan password belum tersedia dan admin perlu menghubungi administrator sistem.
+
+### Penerbitan sertifikat
+
+Nomor sertifikat dibuat dalam format `KODE/JJJJ/NNNN` (contoh: `MAGANG/2026/0001`), dengan urutan terpisah per jenis dan tahun terbit. Berkas PDF dan latar template disimpan di penyimpanan privat. QR code mengarah ke halaman verifikasi publik yang hanya menampilkan status dan informasi sertifikat non-pribadi.
 
 ## Dokumentasi perancangan
 

@@ -15,5 +15,6 @@
         {{ $slot }}
     </main>
     <x-admin.delete-confirmation />
+    <x-ui.flash-toast />
 </body>
 </html>

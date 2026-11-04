@@ -264,7 +264,7 @@ class TemplateSertifikatController extends Controller
                 $template ? 'nullable' : 'required',
                 'image',
                 'mimes:jpg,jpeg,png',
-                'dimensions:min_width=1754,min_height=1240,min_ratio=1',
+                'dimensions:min_width=1403,min_height=992,max_ratio=1',
                 'max:5120',
             ],
             'aktif' => ['required', 'boolean'],

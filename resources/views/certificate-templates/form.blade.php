@@ -95,11 +95,18 @@
                             </span>
                         </span>
                         <small class="certificate-template-editor-help" data-template-file-help>
-                            PNG atau JPG, maksimal 5 MB, lanskap A4 (minimal 1754 × 1240px).
+                            PNG atau JPG, maksimal 5 MB, lanskap A4 (minimal 1403 × 992px, sekitar 120 DPI).
                             @if ($editTemplate)
                                 Desain saat ini tetap digunakan jika tidak ada berkas baru yang dipilih.
                             @endif
                         </small>
+                        <div
+                            class="admin-alert admin-alert-error certificate-template-upload-error"
+                            role="alert"
+                            aria-live="assertive"
+                            data-template-client-error
+                            hidden
+                        ></div>
                         @error('berkas_desain') <small class="field-error">{{ $message }}</small> @enderror
                     </label>
 
@@ -122,7 +129,6 @@
                                 @disabled(!$existingDesignIsImage)
                             >Lihat Pratinjau</button>
                         </div>
-                        <small class="field-error" role="alert" data-template-client-error hidden></small>
                         <small>Pratinjau memakai data contoh dan tidak tercetak</small>
                     </section>
                 </div>

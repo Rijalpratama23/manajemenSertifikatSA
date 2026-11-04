@@ -46,19 +46,27 @@
             </svg>
             <span>Template Sertifikat</span>
         </a>
-        <span class="admin-nav-item is-unavailable" aria-disabled="true">
+        <a
+            class="admin-nav-item {{ request()->routeIs('certificate-issues.*') ? 'is-active' : '' }}"
+            href="{{ route('certificate-issues.create') }}"
+            @if (request()->routeIs('certificate-issues.*')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M7 8V4h10v4m-10 9H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10-4h10v7H7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                 <circle cx="17.5" cy="10.5" r=".8" fill="currentColor"/>
             </svg>
             <span>Terbitkan Sertifikat</span>
-        </span>
-        <span class="admin-nav-item is-unavailable" aria-disabled="true">
+        </a>
+        <a
+            class="admin-nav-item {{ request()->routeIs('certificate-archive.*') ? 'is-active' : '' }}"
+            href="{{ route('certificate-archive.index') }}"
+            @if (request()->routeIs('certificate-archive.*')) aria-current="page" @endif
+        >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M4 8.5h16v12H4v-12Zm-1.5-4h19v4h-19v-4Zm9.5 8v4" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             </svg>
             <span>Arsip Sertifikat</span>
-        </span>
+        </a>
     </nav>
 
     <div class="admin-sidebar-bottom">
@@ -69,7 +77,15 @@
                 <small>Admin Pengelola</small>
             </span>
         </div>
-        <form method="POST" action="{{ route('logout') }}">
+        <form
+            method="POST"
+            action="{{ route('logout') }}"
+            data-confirm
+            data-confirm-title="Keluar dari akun?"
+            data-confirm-message="Anda akan keluar dari sesi admin dan kembali ke halaman login."
+            data-confirm-label="Ya, Keluar"
+            data-confirm-tone="danger"
+        >
             @csrf
             <button class="admin-logout" type="submit">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

@@ -28,7 +28,7 @@
             </div>
         </header>
 
-        <x-admin.panel title="Tabel Peserta" :subtitle="'Menampilkan ' . $participiniants->count() . ' dari ' . $participants->total() . ' peserta'" class="participants-panel">
+        <x-admin.panel title="Tabel Peserta" :subtitle="'Menampilkan ' . $participants->count() . ' dari ' . $participants->total() . ' peserta'" class="participants-panel">
             <div class="participant-table-toolbar">
                 <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options">
                     <input type="hidden" name="search" value="{{ $search }}">
