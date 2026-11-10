@@ -91,7 +91,7 @@ input {
 
 .brand-logo {
     display: block;
-    width: clamp(88px, 9vw, 118px);
+    width: clamp(120px, 12vw, 160px);
     height: auto;
     margin: 0 auto;
 }
@@ -309,20 +309,21 @@ input {
 
 .admin-brand {
     display: grid;
-    min-height: 116px;
+    min-height: 165px;
     place-items: start center;
 }
 
 .admin-brand img {
     display: block;
-    width: 92px;
+    width: 90%;
+    max-width: 150px;
     height: auto;
 }
 
 .admin-navigation {
     display: grid;
     gap: 7px;
-    margin-top: 55px;
+    margin-top: 10px;
 }
 
 .admin-nav-item {
@@ -2255,7 +2256,7 @@ input {
     }
 
     .admin-brand img {
-        width: 70px;
+        width: 160px;
     }
 
     .admin-navigation {
@@ -2475,7 +2476,7 @@ input {
     }
 
     .brand-logo {
-        width: 100px;
+        width: 135px;
     }
 
     .login-header h1 {
@@ -4615,7 +4616,7 @@ input {
     }
 
     .brand-logo {
-        width: 88px;
+        width: 120px;
     }
 }
 
@@ -4626,7 +4627,7 @@ input {
     }
 
     .brand-logo {
-        width: 76px;
+        width: 100px;
     }
 
     .login-header h1 {

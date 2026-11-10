@@ -15,17 +15,6 @@
             <span>Dashboard</span>
         </a>
         <a
-            class="admin-nav-item {{ request()->routeIs('participants.*') ? 'is-active' : '' }}"
-            href="{{ route('participants.index') }}"
-            @if (request()->routeIs('participants.*')) aria-current="page" @endif
-        >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
-                <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m2 3.2a5 5 0 0 1 2.5 4.3V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-            <span>Data Peserta</span>
-        </a>
-        <a
             class="admin-nav-item {{ request()->routeIs('certificate-types.*') ? 'is-active' : '' }}"
             href="{{ route('certificate-types.index') }}"
             @if (request()->routeIs('certificate-types.*')) aria-current="page" @endif
@@ -35,6 +24,17 @@
                 <path d="M14 3.8v4.7h4.2M9 12h6m-6 3.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
             <span>Jenis Sertifikat</span>
+        </a>
+        <a
+            class="admin-nav-item {{ request()->routeIs('participants.*') ? 'is-active' : '' }}"
+            href="{{ route('participants.index') }}"
+            @if (request()->routeIs('participants.*')) aria-current="page" @endif
+        >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m2 3.2a5 5 0 0 1 2.5 4.3V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span>Data Peserta</span>
         </a>
         <a
             class="admin-nav-item {{ request()->routeIs('certificate-templates.*') ? 'is-active' : '' }}"
