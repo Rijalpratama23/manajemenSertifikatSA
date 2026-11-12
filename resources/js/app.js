@@ -87,7 +87,7 @@ const periodPicker = document.querySelector('[data-period-picker]');
 
 if (periodPicker instanceof HTMLFormElement) {
     const periodInput = periodPicker.querySelector('input[type="month"]');
-    const openMonthPickerButton = periodPicker.querySelector('[data-open-month-picker]');
+    const periodLabel = periodPicker.querySelector('.dashboard-period');
 
     if (periodInput instanceof HTMLInputElement) {
         periodInput.addEventListener('change', () => {
@@ -96,8 +96,14 @@ if (periodPicker instanceof HTMLFormElement) {
             }
         });
 
-        if (openMonthPickerButton instanceof HTMLButtonElement) {
-            openMonthPickerButton.addEventListener('click', () => {
+        if (periodLabel instanceof HTMLLabelElement) {
+            periodLabel.addEventListener('click', (event) => {
+                if (event.target === periodInput) {
+                    return;
+                }
+
+                event.preventDefault();
+
                 if ('showPicker' in periodInput) {
                     periodInput.showPicker();
                     return;

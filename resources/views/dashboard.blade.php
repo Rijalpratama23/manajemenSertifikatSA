@@ -13,7 +13,6 @@
                             type="button"
                             aria-label="Buka pemilih bulan"
                             aria-controls="dashboard-period"
-                            data-open-month-picker
                         >
                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <rect x="4" y="6" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.8"/>
