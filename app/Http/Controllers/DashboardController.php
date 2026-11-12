@@ -36,23 +36,23 @@ class DashboardController extends Controller
                 [
                     'label' => 'Jenis Sertifikat',
                     'value' => $jenisAktif,
-                    'detail' => 'jenis aktif untuk terbitan',
+                    'detail' => 'Jenis sertifikat yang tersedia',
                     'tone' => 'orange',
                     'icon' => 'document',
                 ],
                 [
-                    'label' => 'Template Aktif',
+                    'label' => 'Template Tersedia',
                     'value' => $templateAktif,
-                    'detail' => 'template siap digunakan',
+                    'detail' => 'Template yang siap digunakan',
                     'tone' => 'teal',
                     'icon' => 'template',
                 ],
                 [
-                    'label' => 'Sertifikat Terbit',
+                    'label' => 'Sertifikat Diterbitkan',
                     'value' => Sertifikat::query()
                         ->whereBetween('tanggal_terbit', [$awalBulan, $akhirBulan])
                         ->count(),
-                    'detail' => 'sertifikat pada periode ini',
+                    'detail' => 'Jumlah sertifikat yang diterbitkan pada periode ini',
                     'tone' => 'orange',
                     'icon' => 'print',
                 ],

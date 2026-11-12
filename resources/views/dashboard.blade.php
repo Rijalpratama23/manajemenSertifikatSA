@@ -82,14 +82,14 @@
         <div class="dashboard-lower-grid">
             <x-admin.panel
                 title="Aktivitas Terbaru"
-                subtitle="Sertifikat terakhir yang diterbitkan."
+                subtitle="Riwayat penerbitan sertifikat terbaru."
                 class="activity-panel"
             >
                 @if ($recentCertificates->isNotEmpty())
                     <ul class="activity-list">
                         @foreach ($recentCertificates as $certificate)
                             <x-admin.activity-item
-                                title="Sertifikat diterbitkan"
+                                title="Sertifikat berhasil diterbitkan"
                                 :description="($certificate->peserta?->nama ?? 'Peserta tidak tersedia') . ' · ' . ($certificate->jenis?->nama_jenis ?? 'Jenis tidak tersedia')"
                                 :time="$certificate->tanggal_terbit->format('d/m/Y')"
                                 :tone="$loop->odd ? 'teal' : 'orange'"
