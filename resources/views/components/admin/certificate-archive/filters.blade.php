@@ -41,5 +41,18 @@
             <option value="dibatalkan" @selected($status === 'dibatalkan')>Dibatalkan</option>
         </select>
     </label>
-    <button class="certificate-archive-filter-submit" type="submit">Terapkan</button>
+    <div class="certificate-archive-filter-actions">
+        <button class="certificate-archive-filter-submit" type="submit">Terapkan filter</button>
+        <button
+            class="certificate-archive-download-all"
+            type="submit"
+            formaction="{{ route('certificate-archive.download') }}"
+            formmethod="GET"
+        >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3.5v11m0 0 4-4m-4 4-4-4M4.5 15v4.5h15V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Unduh semua hasil
+        </button>
+    </div>
 </form>

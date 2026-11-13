@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Admin;
 use App\Models\JenisSertifikat;
 use App\Models\Peserta;
+use App\Models\Sertifikat;
 use App\Models\TemplateSertifikat;
 use App\Services\CertificatePdfService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,13 +91,70 @@ class CertificateIssuanceTest extends TestCase
         $this->get(route('certificates.verify', $certificate->token_publik))
             ->assertOk()
             ->assertSee($certificate->nomor_sertifikat)
-            ->assertDontSee($participant->nama)
+            ->assertSee($participant->nama)
+            ->assertSee('Sertifikat ditemukan')
+            ->assertSee(route('certificates.verify.pdf', $certificate->token_publik))
+            ->assertSee(route('certificates.verify.download', $certificate->token_publik))
             ->assertDontSee($participant->email);
+
+        $this->get(route('certificates.verify.pdf', $certificate->token_publik))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition', 'inline; filename="MAGANG-2026-0001.pdf"');
+
+        $this->get(route('certificates.verify.download', $certificate->token_publik))
+            ->assertOk()
+            ->assertDownload('MAGANG-2026-0001.pdf');
     }
 
     public function test_issue_page_requires_an_authenticated_admin(): void
     {
         $this->get(route('certificate-issues.create'))->assertRedirect(route('login'));
+    }
+
+    public function test_public_verification_marks_cancelled_certificates_invalid_without_pdf_actions(): void
+    {
+        $participant = Peserta::query()->create([
+            'nama' => 'Doni Prasetyo',
+            'email' => 'doni@example.test',
+        ]);
+        $type = JenisSertifikat::query()->create([
+            'kode' => 'MAGANG',
+            'nama_jenis' => 'Magang',
+            'aktif' => true,
+        ]);
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-cancelled-test',
+            'password_hash' => 'password',
+        ]);
+        $template = TemplateSertifikat::query()->create([
+            'id_jenis' => $type->id_jenis,
+            'nama_template' => 'Template Magang',
+            'berkas_desain' => 'certificate-templates/background.png',
+            'aktif' => true,
+        ]);
+        $certificate = Sertifikat::query()->create([
+            'nomor_sertifikat' => 'MAGANG/2026/0001',
+            'token_publik' => str_repeat('b', 64),
+            'kode_verifikasi' => 'ABCDEF654321',
+            'id_peserta' => $participant->id_peserta,
+            'id_jenis' => $type->id_jenis,
+            'id_admin' => $admin->id_admin,
+            'id_template' => $template->id_template,
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'tanggal_terbit' => '2026-10-28',
+            'status' => Sertifikat::STATUS_DIBATALKAN,
+        ]);
+
+        $this->get(route('certificates.verify', $certificate->token_publik))
+            ->assertOk()
+            ->assertSee('Sertifikat tidak berlaku')
+            ->assertDontSee('Unduh PDF');
+
+        $this->get(route('certificates.verify.download', $certificate->token_publik))
+            ->assertNotFound();
     }
 
     public function test_invalid_period_does_not_consume_a_certificate_number(): void

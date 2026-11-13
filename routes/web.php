@@ -24,6 +24,8 @@ Route::middleware('guest')->group(function () {
         ->name('login.store');
 });
 
+Route::get('/verifikasi/{token}/pdf', [VerifikasiSertifikatController::class, 'preview'])->name('certificates.verify.pdf');
+Route::get('/verifikasi/{token}/unduh', [VerifikasiSertifikatController::class, 'download'])->name('certificates.verify.download');
 Route::get('/verifikasi/{token}', [VerifikasiSertifikatController::class, 'show'])->name('certificates.verify');
 
 Route::middleware('auth')->group(function () {
@@ -52,6 +54,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/template-sertifikat/{template}/status', [TemplateSertifikatController::class, 'toggle'])->name('certificate-templates.toggle');
     Route::delete('/template-sertifikat/{template}', [TemplateSertifikatController::class, 'destroy'])->name('certificate-templates.destroy');
     Route::get('/sertifikat/arsip', [ArsipSertifikatController::class, 'index'])->name('certificate-archive.index');
+    Route::get('/sertifikat/arsip/unduh', [ArsipSertifikatController::class, 'downloadAll'])->name('certificate-archive.download');
     Route::get('/sertifikat/arsip/{sertifikat}', [ArsipSertifikatController::class, 'show'])->name('certificate-archive.show');
     Route::post('/sertifikat/arsip/{sertifikat}/batalkan', [ArsipSertifikatController::class, 'cancel'])->name('certificate-archive.cancel');
     Route::get('/sertifikat/terbitkan', [SertifikatController::class, 'create'])->name('certificate-issues.create');

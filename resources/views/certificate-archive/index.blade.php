@@ -6,6 +6,15 @@
                 <h1>Arsip Sertifikat</h1>
                 <p>Daftar seluruh sertifikat yang telah diterbitkan</p>
             </div>
+        </header>
+
+        <section class="certificate-archive-filter-panel" aria-labelledby="archive-filter-title">
+            <div class="certificate-archive-filter-heading">
+                <div>
+                    <h2 id="archive-filter-title">Filter dan unduh arsip</h2>
+                    <p>Pilih kriteria untuk menyaring daftar atau mengunduh semua PDF yang cocok.</p>
+                </div>
+            </div>
             <x-admin.certificate-archive.filters
                 :search="$search"
                 :certificate-types="$certificateTypes"
@@ -14,7 +23,7 @@
                 :status="$status"
                 :date-filter="$dateFilter"
             />
-        </header>
+        </section>
 
         <x-admin.certificate-archive.summary-stats
             :total="$totalCertificates"

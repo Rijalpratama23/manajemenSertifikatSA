@@ -86,7 +86,7 @@
                         <option value="asc" @selected($sort === 'asc')>A-Z</option>
                         <option value="desc" @selected($sort === 'desc')>Z-A</option>
                     </select>
-                    <button class="participant-secondary-button" type="submit">Terapkan</button>
+                    <button class="participant-secondary-button certificate-type-apply-button" type="submit">Terapkan</button>
                 </form>
             </div>
 
