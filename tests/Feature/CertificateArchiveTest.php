@@ -8,7 +8,9 @@ use App\Models\Peserta;
 use App\Models\Sertifikat;
 use App\Models\TemplateSertifikat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use ZipArchive;
 
 class CertificateArchiveTest extends TestCase
 {
@@ -29,6 +31,8 @@ class CertificateArchiveTest extends TestCase
             ->assertOk()
             ->assertSee($certificate->nomor_sertifikat)
             ->assertSee('Arsip Sertifikat')
+            ->assertSee('Filter dan unduh arsip')
+            ->assertSee('Unduh semua hasil')
             ->assertViewHas('totalCertificates', 1)
             ->assertViewHas('activeCertificates', 1);
 
@@ -58,6 +62,40 @@ class CertificateArchiveTest extends TestCase
             ->assertSee('Penerbitan ulang dari sertifikat')
             ->assertSee($certificate->nomor_sertifikat)
             ->assertSee($certificate->peserta->nama);
+    }
+
+    public function test_admin_can_download_all_matching_archive_certificates_as_a_zip(): void
+    {
+        if (! class_exists(ZipArchive::class)) {
+            $this->markTestSkipped('The PHP Zip extension is required.');
+        }
+
+        Storage::fake('local');
+        $certificate = $this->createCertificate();
+        $certificate->update(['berkas_pdf' => 'certificates/test-certificate.pdf']);
+        Storage::disk('local')->put('certificates/test-certificate.pdf', '%PDF test');
+        $admin = Admin::query()->where('username', 'admin-archive-test')->firstOrFail();
+
+        $response = $this->actingAs($admin)
+            ->get(route('certificate-archive.download', [
+                'tanggal' => '2026',
+                'jenis' => $certificate->id_jenis,
+                'status' => Sertifikat::STATUS_AKTIF,
+            ]));
+
+        $response->assertOk()->assertDownload('arsip-sertifikat.zip');
+        $archivePath = $response->baseResponse->getFile()->getPathname();
+
+        try {
+            $archive = new ZipArchive();
+            self::assertTrue($archive->open($archivePath));
+            self::assertSame('MAGANG-2026-0001.pdf', $archive->getNameIndex(0));
+            $archive->close();
+        } finally {
+            if (is_file($archivePath)) {
+                unlink($archivePath);
+            }
+        }
     }
 
     private function createAdmin(): Admin
