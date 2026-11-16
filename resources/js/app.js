@@ -5,54 +5,72 @@ document.querySelectorAll('[data-app-toast]').forEach((toast) => {
         return;
     }
 
-    let remainingTime = 5000;
-    let timerStartedAt = Date.now();
-    let isPaused = false;
     let isDismissed = false;
     let dismissTimer;
     const dismissToast = () => {
+        if (isDismissed) {
+            return;
+        }
+
         isDismissed = true;
         window.clearTimeout(dismissTimer);
         toast.classList.add('is-dismissed');
         window.setTimeout(() => toast.remove(), 250);
     };
-    const resumeDismissTimer = () => {
-        if (!isPaused || isDismissed) {
-            return;
-        }
-
-        isPaused = false;
-        timerStartedAt = Date.now();
-        dismissTimer = window.setTimeout(dismissToast, remainingTime);
-    };
-    const pauseDismissTimer = () => {
-        if (isPaused || isDismissed) {
-            return;
-        }
-
-        isPaused = true;
-        window.clearTimeout(dismissTimer);
-        remainingTime = Math.max(0, remainingTime - (Date.now() - timerStartedAt));
-    };
-    dismissTimer = window.setTimeout(dismissToast, remainingTime);
+    dismissTimer = window.setTimeout(dismissToast, 3000);
 
     const dismissButton = toast.querySelector('[data-dismiss-toast]');
     dismissButton?.addEventListener('click', () => {
         dismissToast();
     });
+});
 
-    toast.addEventListener('mouseenter', pauseDismissTimer);
-    toast.addEventListener('mouseleave', () => {
-        if (!toast.contains(document.activeElement)) {
-            resumeDismissTimer();
+const alertDismissTimers = new WeakMap();
+const alertRemovalTimers = new WeakMap();
+
+function scheduleAlertDismissal(alert) {
+    if (!(alert instanceof HTMLElement) || alert.hidden || alertDismissTimers.has(alert)) {
+        return;
+    }
+
+    const dismissTimer = window.setTimeout(() => {
+        alertDismissTimers.delete(alert);
+        alert.classList.add('is-dismissing');
+
+        const removalTimer = window.setTimeout(() => {
+            alert.remove();
+            alertRemovalTimers.delete(alert);
+        }, 250);
+
+        alertRemovalTimers.set(alert, removalTimer);
+    }, 3000);
+
+    alertDismissTimers.set(alert, dismissTimer);
+}
+
+document.querySelectorAll('.admin-alert').forEach(scheduleAlertDismissal);
+
+new MutationObserver((mutations) => {
+    mutations.forEach(({ target }) => {
+        if (!(target instanceof HTMLElement) || !target.matches('.admin-alert')) {
+            return;
         }
-    });
-    toast.addEventListener('focusin', pauseDismissTimer);
-    toast.addEventListener('focusout', (event) => {
-        if (!toast.contains(event.relatedTarget) && !toast.matches(':hover')) {
-            resumeDismissTimer();
+
+        if (target.hidden) {
+            window.clearTimeout(alertDismissTimers.get(target));
+            window.clearTimeout(alertRemovalTimers.get(target));
+            alertDismissTimers.delete(target);
+            alertRemovalTimers.delete(target);
+            target.classList.remove('is-dismissing');
+            return;
         }
+
+        scheduleAlertDismissal(target);
     });
+}).observe(document.body, {
+    attributes: true,
+    attributeFilter: ['hidden'],
+    subtree: true,
 });
 
 const passwordToggle = document.querySelector('[data-password-toggle]');
