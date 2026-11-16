@@ -20,6 +20,7 @@
                         placeholder="Cari peserta"
                         aria-label="Cari nama, email, atau instansi peserta"
                     >
+                    <input type="hidden" name="jenis" value="{{ $selectedType }}">
                     <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
                 </form>
@@ -35,6 +36,16 @@
             <div class="participant-table-toolbar">
                 <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options">
                     <input type="hidden" name="search" value="{{ $search }}">
+                    <input type="hidden" name="sort" value="{{ $sort }}">
+                    <label for="participants-certificate-type">Jenis:</label>
+                    <select id="participants-certificate-type" name="jenis">
+                        <option value="">Semua jenis</option>
+                        @foreach ($certificateTypes as $certificateType)
+                            <option value="{{ $certificateType->id_jenis }}" @selected($selectedType === (string) $certificateType->id_jenis)>
+                                {{ $certificateType->nama_jenis }}
+                            </option>
+                        @endforeach
+                    </select>
                     <label for="participants-per-page">Baris:</label>
                     <select id="participants-per-page" name="per_page">
                         @foreach ([10, 25, 50] as $option)
