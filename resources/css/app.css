@@ -1098,7 +1098,9 @@ input {
 
 .participant-table-options {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 7px;
     margin: 0;
     color: #7d8796;
@@ -1106,6 +1108,7 @@ input {
 }
 
 .participant-table-options select {
+    max-width: 190px;
     min-height: 29px;
     padding: 0 7px;
     border: 1px solid #dce8eb;
@@ -1113,6 +1116,10 @@ input {
     color: #526170;
     background: #f8fbfc;
     font-size: 10px;
+}
+
+#participants-certificate-type {
+    max-width: 170px;
 }
 
 .participant-table-options .participant-secondary-button {
@@ -2484,6 +2491,10 @@ input {
 
     .participant-table {
         min-width: 850px;
+    }
+
+    #participants-certificate-type {
+        max-width: 130px;
     }
 
     .participant-table-footer {

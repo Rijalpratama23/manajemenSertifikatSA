@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Imports\PesertaImport;
+use App\Models\JenisSertifikat;
 use App\Models\Peserta;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -18,11 +19,13 @@ class PesertaController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:150'],
+            'jenis' => ['nullable', 'integer', Rule::exists('jenis_sertifikat', 'id_jenis')],
             'per_page' => ['nullable', Rule::in(['10', '25', '50'])],
             'sort' => ['nullable', Rule::in(['newest', 'oldest'])],
             'edit' => ['nullable', 'integer', Rule::exists('peserta', 'id_peserta')],
         ]);
         $search = trim($validated['search'] ?? '');
+        $selectedType = (string) ($validated['jenis'] ?? '');
         $perPage = (int) ($validated['per_page'] ?? 10);
         $sort = $validated['sort'] ?? 'newest';
 
@@ -35,6 +38,10 @@ class PesertaController extends Controller
                         ->orWhere('asal_instansi', 'like', "%{$search}%");
                 });
             })
+            ->when($selectedType !== '', fn ($query) => $query->whereHas(
+                'sertifikat',
+                fn ($certificateQuery) => $certificateQuery->where('id_jenis', $selectedType),
+            ))
             ->orderBy('dibuat_pada', $sort === 'oldest' ? 'asc' : 'desc')
             ->orderBy('id_peserta', $sort === 'oldest' ? 'asc' : 'desc')
             ->paginate($perPage)
@@ -43,8 +50,19 @@ class PesertaController extends Controller
         $editParticipant = isset($validated['edit'])
             ? Peserta::query()->findOrFail($validated['edit'])
             : null;
+        $certificateTypes = JenisSertifikat::query()
+            ->orderBy('nama_jenis')
+            ->get(['id_jenis', 'nama_jenis']);
 
-        return view('participants.index', compact('participants', 'search', 'perPage', 'sort', 'editParticipant'));
+        return view('participants.index', compact(
+            'participants',
+            'certificateTypes',
+            'search',
+            'selectedType',
+            'perPage',
+            'sort',
+            'editParticipant',
+        ));
     }
 
     public function create(): View
