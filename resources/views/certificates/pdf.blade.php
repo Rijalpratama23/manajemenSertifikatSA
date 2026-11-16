@@ -26,16 +26,24 @@
             <div class="given">diberikan kepada</div>
             <div class="name">{{ $sertifikat->peserta->nama }}</div>
             <div class="description">
-                telah menyelesaikan program {{ $sertifikat->jenis->nama_jenis }}<br>
+                {{ $sertifikat->deskripsi ?: 'telah menyelesaikan program '.$sertifikat->jenis->nama_jenis }}<br>
+                @if ($sertifikat->deskripsi)
+                    {{ $sertifikat->jenis->nama_jenis }}<br>
+                @endif
                 periode {{ $sertifikat->periode_mulai->locale('id')->translatedFormat('j M Y') }}
                 – {{ $sertifikat->periode_selesai->locale('id')->translatedFormat('j M Y') }}
                 @if ($sertifikat->durasi) ({{ $sertifikat->durasi }}) @endif
             </div>
-            @if ($sertifikat->nilai || $sertifikat->predikat)
+            @if ($sertifikat->nilai || $sertifikat->predikat || $sertifikat->data_pendukung)
                 <div class="details">
                     @if ($sertifikat->nilai) Nilai {{ $sertifikat->nilai }} @endif
                     @if ($sertifikat->nilai && $sertifikat->predikat) · @endif
                     @if ($sertifikat->predikat) {{ $sertifikat->predikat }} @endif
+                    @foreach (config('certificate-issuance.types.'.$sertifikat->jenis->kode.'.fields', []) as $field)
+                        @if (! isset($field['column']) && ! empty($sertifikat->data_pendukung[$field['key']] ?? null))
+                            <div>{{ $field['label'] }}: {{ $sertifikat->data_pendukung[$field['key']] }}</div>
+                        @endif
+                    @endforeach
                 </div>
             @endif
             <div class="number">Nomor: {{ $sertifikat->nomor_sertifikat }}</div>

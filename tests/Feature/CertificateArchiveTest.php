@@ -19,7 +19,7 @@ class CertificateArchiveTest extends TestCase
     public function test_admin_can_search_filter_and_view_certificate_archive(): void
     {
         $admin = $this->createAdmin();
-        $certificate = $this->createCertificate();
+        $certificate = $this->createCertificate($admin);
 
         $this->actingAs($admin)
             ->get(route('certificate-archive.index', [
@@ -32,7 +32,7 @@ class CertificateArchiveTest extends TestCase
             ->assertSee($certificate->nomor_sertifikat)
             ->assertSee('Arsip Sertifikat')
             ->assertSee('Filter dan unduh arsip')
-            ->assertSee('Unduh semua hasil')
+            ->assertSee('Unduh semua hasil (ZIP)')
             ->assertViewHas('totalCertificates', 1)
             ->assertViewHas('activeCertificates', 1);
 
@@ -45,7 +45,7 @@ class CertificateArchiveTest extends TestCase
     public function test_admin_can_cancel_certificate_and_open_its_reissue_form(): void
     {
         $admin = $this->createAdmin();
-        $certificate = $this->createCertificate();
+        $certificate = $this->createCertificate($admin);
 
         $this->actingAs($admin)
             ->post(route('certificate-archive.cancel', $certificate))
@@ -72,7 +72,10 @@ class CertificateArchiveTest extends TestCase
 
         Storage::fake('local');
         $certificate = $this->createCertificate();
-        $certificate->update(['berkas_pdf' => 'certificates/test-certificate.pdf']);
+        $certificate->update([
+            'berkas_pdf' => 'certificates/test-certificate.pdf',
+            'pdf_status' => Sertifikat::PDF_STATUS_COMPLETED,
+        ]);
         Storage::disk('local')->put('certificates/test-certificate.pdf', '%PDF test');
         $admin = Admin::query()->where('username', 'admin-archive-test')->firstOrFail();
 
@@ -87,7 +90,7 @@ class CertificateArchiveTest extends TestCase
         $archivePath = $response->baseResponse->getFile()->getPathname();
 
         try {
-            $archive = new ZipArchive();
+            $archive = new ZipArchive;
             self::assertTrue($archive->open($archivePath));
             self::assertSame('MAGANG-2026-0001.pdf', $archive->getNameIndex(0));
             $archive->close();
@@ -107,7 +110,7 @@ class CertificateArchiveTest extends TestCase
         ]);
     }
 
-    private function createCertificate(): Sertifikat
+    private function createCertificate(?Admin $admin = null): Sertifikat
     {
         $participant = Peserta::query()->create([
             'nama' => 'Doni Prasetyo',
@@ -125,7 +128,7 @@ class CertificateArchiveTest extends TestCase
             'berkas_desain' => 'certificate-templates/background.png',
             'aktif' => true,
         ]);
-        $admin = $this->createAdmin();
+        $admin ??= $this->createAdmin();
 
         return Sertifikat::query()->create([
             'nomor_sertifikat' => 'MAGANG/2026/0001',

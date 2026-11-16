@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ArsipSertifikatController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\JenisSertifikatController;
 use App\Http\Controllers\PesertaController;
@@ -59,6 +59,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/sertifikat/arsip/{sertifikat}', [ArsipSertifikatController::class, 'show'])->name('certificate-archive.show');
     Route::post('/sertifikat/arsip/{sertifikat}/batalkan', [ArsipSertifikatController::class, 'cancel'])->name('certificate-archive.cancel');
     Route::get('/sertifikat/terbitkan', [SertifikatController::class, 'create'])->name('certificate-issues.create');
+    Route::post('/sertifikat/terbitkan/unduh-zip', [SertifikatController::class, 'downloadBatch'])->name('certificate-issues.download-batch');
     Route::post('/sertifikat/terbitkan', [SertifikatController::class, 'store'])->name('certificate-issues.store');
     Route::get('/sertifikat/{sertifikat}/pratinjau', [SertifikatController::class, 'preview'])->name('certificate-issues.preview');
     Route::get('/sertifikat/{sertifikat}/unduh', [SertifikatController::class, 'download'])->name('certificate-issues.download');

@@ -882,12 +882,6 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         && confirmCancel instanceof HTMLButtonElement
         && confirmSubmit instanceof HTMLButtonElement
     ) {
-        const getSelectedText = (selector) => {
-            const select = certificateIssuanceForm.querySelector(selector);
-            return select instanceof HTMLSelectElement
-                ? select.selectedOptions[0]?.textContent?.trim() ?? ''
-                : '';
-        };
         const getTemplateName = () => {
             const option = certificateIssuanceForm.querySelector('[data-issuance-type]')?.selectedOptions[0];
             return option instanceof HTMLOptionElement ? option.dataset.templateName ?? '' : '';
@@ -905,9 +899,16 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             const period = startDate instanceof HTMLInputElement && endDate instanceof HTMLInputElement
                 ? [startDate.value, endDate.value].filter(Boolean).map(formatIssuanceDate).join(' - ')
                 : '';
+            const selectedParticipants = certificateIssuanceForm.querySelectorAll('[data-issuance-participant-row] input:checked');
+            const participantNames = Array.from(selectedParticipants, (checkbox) => checkbox.dataset.participantName);
 
-            confirmParticipant.textContent = getSelectedText('[data-issuance-participant]') || '-';
-            confirmType.textContent = getSelectedText('[data-issuance-type]') || '-';
+            confirmParticipant.textContent = participantNames.length
+                ? `${participantNames.length} peserta: ${participantNames.join(', ')}`
+                : '-';
+            const selectedType = certificateIssuanceForm.querySelector('[data-issuance-type]');
+            confirmType.textContent = selectedType instanceof HTMLSelectElement
+                ? selectedType.selectedOptions[0]?.textContent?.trim() ?? '-'
+                : '-';
             confirmPeriod.textContent = period || '-';
             confirmTemplate.textContent = getTemplateName() || '-';
             issuanceConfirmation.showModal();
@@ -935,11 +936,11 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         });
     }
 
-    const participantSelect = certificateIssuanceForm.querySelector('[data-issuance-participant]');
-    const participantInfo = certificateIssuanceForm.querySelector('[data-issuance-participant-info]');
-    const participantEmail = certificateIssuanceForm.querySelector('[data-participant-email]');
-    const participantInstitution = certificateIssuanceForm.querySelector('[data-participant-institution]');
-    const participantCertificateCount = certificateIssuanceForm.querySelector('[data-participant-certificate-count]');
+    const participantsList = certificateIssuanceForm.querySelector('[data-issuance-participants]');
+    const participantHint = certificateIssuanceForm.querySelector('[data-issuance-participant-hint]');
+    const participantsEmpty = certificateIssuanceForm.querySelector('[data-issuance-participants-empty]');
+    const selectAllParticipants = certificateIssuanceForm.querySelector('[data-issuance-select-all]');
+    const selectAllParticipantsRow = certificateIssuanceForm.querySelector('[data-issuance-select-all-row]');
     const typeSelect = certificateIssuanceForm.querySelector('[data-issuance-type]');
     const templateId = certificateIssuanceForm.querySelector('[data-issuance-template-id]');
     const templateUsed = certificateIssuanceForm.querySelector('[data-issuance-template-used]');
@@ -952,9 +953,9 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
     const scorePreview = certificateIssuanceForm.querySelector('[data-preview-score]');
     const dateStart = certificateIssuanceForm.querySelector('[data-issuance-start]');
     const dateEnd = certificateIssuanceForm.querySelector('[data-issuance-end]');
-    const durationInput = certificateIssuanceForm.querySelector('[data-issuance-duration]');
-    const scoreInput = certificateIssuanceForm.querySelector('[data-issuance-score]');
-    const predicateInput = certificateIssuanceForm.querySelector('[data-issuance-predicate]');
+    const descriptionInput = certificateIssuanceForm.querySelector('[data-issuance-description]');
+    const descriptionPreview = certificateIssuanceForm.querySelector('[data-preview-description]');
+    const supportPreview = certificateIssuanceForm.querySelector('[data-preview-support]');
     const formatIssuanceDate = (value) => {
         if (!value) {
             return '';
@@ -968,31 +969,128 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         }).format(date);
     };
 
-    const updateParticipant = () => {
+    const updateParticipants = () => {
+        if (!(participantsList instanceof HTMLFieldSetElement) || !(typeSelect instanceof HTMLSelectElement)) {
+            return;
+        }
+
+        const typeId = typeSelect.value;
+        participantsList.disabled = !typeId;
+        if (participantHint instanceof HTMLElement) {
+            participantHint.hidden = Boolean(typeId);
+        }
+
+        let visibleCount = 0;
+        const rows = Array.from(participantsList.querySelectorAll('[data-issuance-participant-row]'));
+        rows.forEach((row) => {
+            if (!(row instanceof HTMLElement)) {
+                return;
+            }
+
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            const issuedTypes = (row.dataset.issuedTypes ?? '').split(',').filter(Boolean);
+            const eligible = Boolean(typeId) && !issuedTypes.includes(typeId);
+            row.hidden = !eligible;
+            if (!eligible && checkbox instanceof HTMLInputElement) {
+                checkbox.checked = false;
+                checkbox.required = false;
+            }
+            if (eligible) {
+                visibleCount += 1;
+            }
+        });
+
+        const firstEligibleCheckbox = rows
+            .filter((row) => row instanceof HTMLElement && !row.hidden)
+            .map((row) => row.querySelector('input[type="checkbox"]'))
+            .find((checkbox) => checkbox instanceof HTMLInputElement);
+        syncParticipantRequired(firstEligibleCheckbox);
+        if (participantsEmpty instanceof HTMLElement) {
+            participantsEmpty.hidden = !typeId || visibleCount > 0;
+        }
+        if (selectAllParticipantsRow instanceof HTMLElement) {
+            selectAllParticipantsRow.hidden = !typeId || visibleCount === 0;
+        }
+        updateParticipantPreview();
+    };
+
+    const updateParticipantPreview = () => {
+        if (!(namePreview instanceof HTMLElement) || !(participantsList instanceof HTMLFieldSetElement)) {
+            return;
+        }
+
+        const checked = Array.from(
+            participantsList.querySelectorAll('input[type="checkbox"]:checked'),
+            (checkbox) => checkbox.dataset.participantName,
+        );
+        const firstEligibleCheckbox = Array.from(
+            participantsList.querySelectorAll('[data-issuance-participant-row]:not([hidden]) input[type="checkbox"]'),
+        ).find((checkbox) => checkbox instanceof HTMLInputElement);
+        syncParticipantRequired(firstEligibleCheckbox);
+        syncSelectAllParticipants();
+        namePreview.textContent = checked.length > 1
+            ? `${checked.length} peserta dipilih`
+            : checked[0] ?? 'Nama Peserta';
+    };
+
+    const syncParticipantRequired = (firstEligibleCheckbox) => {
+        if (!(participantsList instanceof HTMLFieldSetElement)) {
+            return;
+        }
+
+        const hasSelection = Boolean(participantsList.querySelector('input[type="checkbox"]:checked'));
+        participantsList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+            if (checkbox instanceof HTMLInputElement) {
+                checkbox.required = !hasSelection && checkbox === firstEligibleCheckbox;
+            }
+        });
+    };
+
+    const syncSelectAllParticipants = () => {
         if (
-            !(participantSelect instanceof HTMLSelectElement)
-            || !(participantInfo instanceof HTMLElement)
-            || !(participantEmail instanceof HTMLElement)
-            || !(participantInstitution instanceof HTMLElement)
-            || !(participantCertificateCount instanceof HTMLElement)
-            || !(namePreview instanceof HTMLElement)
+            !(participantsList instanceof HTMLFieldSetElement)
+            || !(selectAllParticipants instanceof HTMLInputElement)
         ) {
             return;
         }
 
-        const option = participantSelect.selectedOptions[0];
-        if (!option || !option.value) {
-            participantInfo.hidden = true;
-            namePreview.textContent = 'Nama Peserta';
+        const eligibleCheckboxes = Array.from(
+            participantsList.querySelectorAll('[data-issuance-participant-row]:not([hidden]) input[type="checkbox"]'),
+        ).filter((checkbox) => checkbox instanceof HTMLInputElement);
+        const selectedCount = eligibleCheckboxes.filter((checkbox) => checkbox.checked).length;
+
+        selectAllParticipants.disabled = eligibleCheckboxes.length === 0;
+        selectAllParticipants.checked = eligibleCheckboxes.length > 0
+            && selectedCount === eligibleCheckboxes.length;
+        selectAllParticipants.indeterminate = selectedCount > 0
+            && selectedCount < eligibleCheckboxes.length;
+    };
+
+    const updateTypeFields = () => {
+        if (!(typeSelect instanceof HTMLSelectElement)) {
             return;
         }
 
-        participantInfo.hidden = false;
-        participantEmail.textContent = option.dataset.email ?? '';
-        participantInstitution.textContent = option.dataset.institution ?? 'Asal Sekolah/Universitas belum diisi';
-        const count = Number(option.dataset.certificateCount ?? '0');
-        participantCertificateCount.textContent = ` · ${count} sertifikat sebelumnya`;
-        namePreview.textContent = option.textContent?.trim() ?? 'Nama Peserta';
+        const typeCode = typeSelect.selectedOptions[0]?.dataset.typeCode ?? '';
+        certificateIssuanceForm.querySelectorAll('[data-issuance-type-fields]').forEach((fieldset) => {
+            if (!(fieldset instanceof HTMLFieldSetElement)) {
+                return;
+            }
+
+            const active = Boolean(typeCode) && fieldset.dataset.issuanceTypeFields === typeCode;
+            fieldset.hidden = !active;
+            fieldset.disabled = !active;
+        });
+    };
+
+    const activeSupportFields = () => {
+        const typeCode = typeSelect instanceof HTMLSelectElement
+            ? typeSelect.selectedOptions[0]?.dataset.typeCode
+            : '';
+
+        return Array.from(certificateIssuanceForm.querySelectorAll('[data-issuance-type-fields]'))
+            .find((fieldset) => fieldset instanceof HTMLFieldSetElement
+                && fieldset.dataset.issuanceTypeFields === typeCode);
     };
 
     const updatePreview = () => {
@@ -1029,6 +1127,10 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             periodPreview.textContent = start && end ? `periode ${start} – ${end}` : '';
         }
 
+        const activeFields = activeSupportFields();
+        const durationInput = activeFields?.querySelector('[data-support-column="durasi"]');
+        const scoreInput = activeFields?.querySelector('[data-support-column="nilai"]');
+        const predicateInput = activeFields?.querySelector('[data-support-column="predikat"]');
         if (durationPreview instanceof HTMLElement && durationInput instanceof HTMLInputElement) {
             durationPreview.textContent = durationInput.value.trim()
                 ? `(${durationInput.value.trim()})`
@@ -1042,27 +1144,61 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
                 .filter(Boolean)
                 .join(' · ');
         }
+        if (supportPreview instanceof HTMLElement) {
+            const extraValues = Array.from(activeFields?.querySelectorAll('[data-support-input]') ?? [])
+                .filter((input) => input instanceof HTMLInputElement
+                    && input.value.trim()
+                    && !input.dataset.supportColumn)
+                .map((input) => `${input.dataset.supportLabel}: ${input.value.trim()}`);
+            supportPreview.textContent = extraValues.join(' · ');
+        }
+        if (descriptionPreview instanceof HTMLElement && descriptionInput instanceof HTMLTextAreaElement) {
+            descriptionPreview.textContent = descriptionInput.value.trim() || 'Deskripsi sertifikat';
+        }
     };
 
-    if (participantSelect instanceof HTMLSelectElement) {
-        participantSelect.addEventListener('change', updateParticipant);
-        updateParticipant();
+    if (participantsList instanceof HTMLFieldSetElement) {
+        participantsList.addEventListener('change', updateParticipantPreview);
+        updateParticipants();
+    }
+    if (
+        participantsList instanceof HTMLFieldSetElement
+        && selectAllParticipants instanceof HTMLInputElement
+    ) {
+        selectAllParticipants.addEventListener('change', () => {
+            participantsList.querySelectorAll(
+                '[data-issuance-participant-row]:not([hidden]) input[type="checkbox"]',
+            ).forEach((checkbox) => {
+                if (checkbox instanceof HTMLInputElement) {
+                    checkbox.checked = selectAllParticipants.checked;
+                }
+            });
+            updateParticipantPreview();
+        });
     }
 
     if (typeSelect instanceof HTMLSelectElement) {
-        typeSelect.addEventListener('change', updatePreview);
+        typeSelect.addEventListener('change', () => {
+            updateParticipants();
+            updateTypeFields();
+            updatePreview();
+        });
+        updateParticipants();
+        updateTypeFields();
         updatePreview();
     }
 
     [
         dateStart,
         dateEnd,
-        durationInput,
-        scoreInput,
-        predicateInput,
+        descriptionInput,
     ].forEach((input) => {
         input?.addEventListener('input', updatePreview);
         input?.addEventListener('change', updatePreview);
+    });
+    certificateIssuanceForm.querySelectorAll('[data-support-input]').forEach((input) => {
+        input.addEventListener('input', updatePreview);
+        input.addEventListener('change', updatePreview);
     });
 
     if (dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {

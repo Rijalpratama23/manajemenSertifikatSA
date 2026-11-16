@@ -36,13 +36,33 @@
                     <div><dt>Durasi</dt><dd>{{ $sertifikat->durasi ?: '—' }}</dd></div>
                     <div><dt>Nilai</dt><dd>{{ $sertifikat->nilai ?: '—' }}</dd></div>
                     <div><dt>Predikat</dt><dd>{{ $sertifikat->predikat ?: '—' }}</dd></div>
+                    <div><dt>Deskripsi</dt><dd>{{ $sertifikat->deskripsi ?: '—' }}</dd></div>
+                    @foreach (config('certificate-issuance.types.'.$sertifikat->jenis->kode.'.fields', []) as $field)
+                        @if (! isset($field['column']) && ! empty($sertifikat->data_pendukung[$field['key']] ?? null))
+                            <div><dt>{{ $field['label'] }}</dt><dd>{{ $sertifikat->data_pendukung[$field['key']] }}</dd></div>
+                        @endif
+                    @endforeach
                     <div><dt>Status</dt><dd class="{{ $sertifikat->isAktif() ? 'certificate-issued-status' : 'certificate-archive-cancelled-text' }}">{{ $sertifikat->isAktif() ? 'Aktif' : 'Dibatalkan' }}</dd></div>
+                    <div>
+                        <dt>Status PDF</dt>
+                        <dd>
+                            @if ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $sertifikat->berkas_pdf)
+                                Siap diunduh
+                            @elseif ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
+                                Gagal dibuat
+                            @elseif ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_PROCESSING)
+                                Sedang dibuat
+                            @else
+                                Menunggu antrean
+                            @endif
+                        </dd>
+                    </div>
                     @if (! $sertifikat->isAktif())
                         <div><dt>Alasan batal</dt><dd>{{ $sertifikat->alasan_batal ?: '—' }}</dd></div>
                     @endif
                 </dl>
                 <div class="certificate-issued-actions">
-                    @if ($sertifikat->berkas_pdf)
+                    @if ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $sertifikat->berkas_pdf)
                         <a class="certificate-issued-download" href="{{ route('certificate-issues.download', $sertifikat) }}">Unduh PDF</a>
                     @endif
                     <a class="certificate-issued-history" href="{{ route('participants.show', $sertifikat->peserta) }}">Lihat peserta</a>
@@ -68,7 +88,7 @@
 
             <section class="certificate-issued-preview-panel" aria-labelledby="archive-preview-title">
                 <h2 id="archive-preview-title">Pratinjau PDF</h2>
-                @if ($sertifikat->berkas_pdf)
+                @if ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $sertifikat->berkas_pdf)
                     <div class="certificate-issued-pdf-frame">
                         <iframe
                             src="{{ route('certificate-issues.preview', $sertifikat) }}#toolbar=0&navpanes=0&scrollbar=0"
@@ -76,7 +96,13 @@
                         ></iframe>
                     </div>
                 @else
-                    <p>File PDF untuk sertifikat ini tidak tersedia.</p>
+                    <p>
+                        @if ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
+                            Pembuatan PDF gagal. Periksa log aplikasi atau hubungi administrator.
+                        @else
+                            PDF sedang menunggu diproses. Pastikan worker antrean berjalan, lalu periksa kembali halaman ini.
+                        @endif
+                    </p>
                 @endif
             </section>
         </div>

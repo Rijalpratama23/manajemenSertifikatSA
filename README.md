@@ -137,9 +137,13 @@ Jalankan migrasi dan seeder, lalu aplikasi:
 php artisan migrate --seed
 php artisan serve        # terminal 1
 npm run dev              # terminal 2
+php artisan queue:work certificate_pdfs --queue=certificate-pdfs --tries=3 --timeout=240  # terminal 3
 ```
 
 Buka `http://127.0.0.1:8000`.
+
+PDF sertifikat memakai antrean database khusus sehingga tetap dibuat di latar belakang meskipun `QUEUE_CONNECTION=sync`. Pastikan worker tetap berjalan; PDF berstatus menunggu atau sedang dibuat akan muncul di arsip setelah proses selesai. Jika job gagal setelah tiga percobaan, periksa dengan `php artisan queue:failed`, lalu ulangi job tertentu dengan `php artisan queue:retry <uuid>`.
+
 
 ## Struktur folder penting
 

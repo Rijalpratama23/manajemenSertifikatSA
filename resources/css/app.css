@@ -3507,7 +3507,8 @@ input {
 }
 
 .certificate-issuance-field input,
-.certificate-issuance-field select {
+.certificate-issuance-field select,
+.certificate-issuance-field textarea {
     width: 100%;
     min-width: 0;
     height: 37px;
@@ -3522,7 +3523,8 @@ input {
 }
 
 .certificate-issuance-field input:focus,
-.certificate-issuance-field select:focus {
+.certificate-issuance-field select:focus,
+.certificate-issuance-field textarea:focus {
     border-color: #168f91;
     box-shadow: 0 0 0 3px rgb(22 143 145 / 11%);
 }
@@ -3555,6 +3557,139 @@ input {
 
 .certificate-issuance-participant-info[hidden] {
     display: none;
+}
+
+.certificate-issuance-participant-hint {
+    margin: -2px 0 9px;
+    color: #74818d;
+    font-size: 10px;
+}
+
+.certificate-issuance-participants {
+    display: grid;
+    max-height: 230px;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    border: 0;
+}
+
+.certificate-issuance-participants:disabled {
+    display: none;
+}
+
+.certificate-issuance-select-all {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid #dce8eb;
+    border-radius: 9px;
+    color: #168f91;
+    background: #f5fafb;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.certificate-issuance-select-all[hidden] {
+    display: none;
+}
+
+.certificate-issuance-select-all input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #168f91;
+}
+
+.certificate-issuance-participant {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 10px;
+    border: 1px solid #e0e9eb;
+    border-radius: 9px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.certificate-issuance-participant[hidden],
+.certificate-issuance-description-field[hidden],
+[data-type-field][hidden] {
+    display: none;
+}
+
+.certificate-issuance-participant input {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    accent-color: #168f91;
+}
+
+.certificate-issuance-participant > span {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 3px;
+}
+
+.certificate-issuance-participant strong {
+    color: #344151;
+    font-size: 11px;
+}
+
+.certificate-issuance-participant small,
+.certificate-issuance-participants-empty {
+    color: #778390;
+    font-size: 9px;
+}
+
+.certificate-issuance-participant-count {
+    flex: 0 0 auto;
+}
+
+.certificate-issuance-participants-empty {
+    margin: 8px 0;
+}
+
+.certificate-issuance-field textarea {
+    min-height: 74px;
+    padding: 9px 11px;
+    resize: vertical;
+    border: 1px solid #b9c9ce;
+    border-radius: 9px;
+    outline: 0;
+    color: #354151;
+    background: #fff;
+    font: inherit;
+    font-weight: 400;
+}
+
+.certificate-issuance-description-field {
+    grid-column: 1 / -1;
+}
+
+.certificate-issuance-type-fields {
+    min-width: 0;
+    margin: 0 0 10px;
+    padding: 0;
+    border: 0;
+}
+
+.certificate-issuance-type-fields[hidden] {
+    display: none;
+}
+
+.certificate-issuance-type-fields h3 {
+    margin: 0 0 8px;
+    color: #536271;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .certificate-issuance-fields-grid {
@@ -3675,7 +3810,8 @@ input {
 }
 
 .issuance-preview-description [data-preview-period],
-.issuance-preview-description [data-preview-duration] {
+.issuance-preview-description [data-preview-duration],
+.issuance-preview-description [data-preview-support] {
     display: block;
 }
 
@@ -3867,6 +4003,55 @@ input {
     grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr);
     align-items: start;
     gap: 16px;
+}
+
+.certificate-issued-batch-panel {
+    max-width: 860px;
+}
+
+.certificate-issued-batch-panel h2 {
+    margin: 0 0 12px;
+    color: #273443;
+    font-size: 15px;
+}
+
+.certificate-issued-batch-panel ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.certificate-issued-batch-panel li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e1eaec;
+    border-radius: 9px;
+}
+
+.certificate-issued-batch-panel li > span:first-child {
+    display: grid;
+    gap: 3px;
+}
+
+.certificate-issued-batch-panel li small {
+    color: #6f7e89;
+    font-size: 10px;
+}
+
+.certificate-issued-batch-panel li > span:last-child {
+    display: flex;
+    gap: 12px;
+}
+
+.certificate-issued-batch-panel li a {
+    color: #168f91;
+    font-size: 10px;
+    font-weight: 700;
 }
 
 .certificate-issued-details-panel,

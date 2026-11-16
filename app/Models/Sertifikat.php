@@ -9,19 +9,29 @@ use LogicException;
 class Sertifikat extends Model
 {
     public const STATUS_AKTIF = 'aktif';
+
     public const STATUS_DIBATALKAN = 'dibatalkan';
+
+    public const PDF_STATUS_PENDING = 'pending';
+
+    public const PDF_STATUS_PROCESSING = 'processing';
+
+    public const PDF_STATUS_COMPLETED = 'completed';
+
+    public const PDF_STATUS_FAILED = 'failed';
 
     // Tabel sertifikat tidak memakai created_at/updated_at; tanggal_terbit diisi eksplisit.
     public $timestamps = false;
 
     protected $table = 'sertifikat';
+
     protected $primaryKey = 'id_sertifikat';
 
     protected $fillable = [
         'nomor_sertifikat', 'token_publik', 'kode_verifikasi',
         'id_peserta', 'id_jenis', 'id_admin', 'id_template',
-        'periode_mulai', 'periode_selesai', 'durasi', 'nilai', 'predikat',
-        'tanggal_terbit', 'status', 'berkas_pdf',
+        'periode_mulai', 'periode_selesai', 'durasi', 'nilai', 'predikat', 'deskripsi', 'data_pendukung',
+        'tanggal_terbit', 'status', 'berkas_pdf', 'pdf_status',
         'alasan_batal', 'dibatalkan_pada',
     ];
 
@@ -35,6 +45,7 @@ class Sertifikat extends Model
             'periode_selesai' => 'date',
             'tanggal_terbit' => 'date',
             'dibatalkan_pada' => 'datetime',
+            'data_pendukung' => 'array',
         ];
     }
 

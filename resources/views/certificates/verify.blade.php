@@ -49,7 +49,13 @@
                         Unduh PDF
                     </a>
                 @elseif ($sertifikat->isAktif())
-                    <p class="certificate-verification-note">Berkas PDF sertifikat belum tersedia.</p>
+                    <p class="certificate-verification-note">
+                        @if ($sertifikat->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
+                            PDF sertifikat gagal dibuat. Silakan hubungi Sukarobot Academy.
+                        @else
+                            PDF sertifikat sedang diproses dan belum tersedia untuk diunduh.
+                        @endif
+                    </p>
                 @endif
                 @if ($hasPdf)
                     <p class="certificate-verification-note">

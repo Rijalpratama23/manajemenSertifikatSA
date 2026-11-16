@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\GenerateCertificatePdf;
 use App\Models\Admin;
 use App\Models\JenisSertifikat;
 use App\Models\Peserta;
@@ -9,9 +10,11 @@ use App\Models\Sertifikat;
 use App\Models\TemplateSertifikat;
 use App\Services\CertificatePdfService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
 use Tests\TestCase;
+use ZipArchive;
 
 class CertificateIssuanceTest extends TestCase
 {
@@ -20,6 +23,7 @@ class CertificateIssuanceTest extends TestCase
     public function test_admin_can_issue_certificate_and_download_its_private_pdf(): void
     {
         Storage::fake('local');
+        Queue::fake();
         $admin = Admin::query()->create([
             'nama' => 'Admin Test',
             'username' => 'admin-test',
@@ -49,10 +53,6 @@ class CertificateIssuanceTest extends TestCase
             ->assertSee('Doni Prasetyo')
             ->assertSee('Template Magang');
 
-        $this->mock(CertificatePdfService::class, function (MockInterface $mock) {
-            $mock->shouldReceive('render')->once()->andReturn('%PDF-test');
-        });
-
         $response = $this->actingAs($admin)->post(route('certificate-issues.store'), [
             'id_peserta' => $participant->id_peserta,
             'id_jenis' => $type->id_jenis,
@@ -60,20 +60,35 @@ class CertificateIssuanceTest extends TestCase
             'tanggal_terbit' => '2026-10-28',
             'periode_mulai' => '2026-09-01',
             'periode_selesai' => '2026-11-30',
-            'durasi' => '3 bulan',
-            'nilai' => '92',
-            'predikat' => 'Sangat Baik',
+            'data_pendukung' => [
+                'instansi' => 'PT Sukarobot',
+                'posisi' => 'Software Developer',
+                'durasi' => '3 bulan',
+            ],
+            'deskripsi' => 'Telah menyelesaikan program magang dengan baik.',
         ]);
 
-        $response->assertRedirect(route('certificate-issues.create'));
-        $certificate = \App\Models\Sertifikat::query()->firstOrFail();
+        $response->assertRedirect(route('certificate-issues.create', ['batch' => 1]));
+        $certificate = Sertifikat::query()->firstOrFail();
         $this->assertSame('MAGANG/2026/0001', $certificate->nomor_sertifikat);
         $this->assertSame($admin->id_admin, $certificate->id_admin);
         $this->assertSame($template->id_template, $certificate->id_template);
+        $this->assertSame('Software Developer', $certificate->data_pendukung['posisi']);
+        $this->assertSame('3 bulan', $certificate->durasi);
+        $this->assertSame(Sertifikat::PDF_STATUS_PENDING, $certificate->pdf_status);
+        $this->assertNull($certificate->berkas_pdf);
+        Queue::assertPushed(GenerateCertificatePdf::class, 1);
+        $this->mock(CertificatePdfService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('render')->once()->andReturn('%PDF-test');
+        });
+        Queue::pushed(GenerateCertificatePdf::class)->first()
+            ->handle(app(CertificatePdfService::class));
+        $certificate->refresh();
+        $this->assertSame(Sertifikat::PDF_STATUS_COMPLETED, $certificate->pdf_status);
         Storage::disk('local')->assertExists($certificate->berkas_pdf);
 
         $this->actingAs($admin)
-            ->get(route('certificate-issues.create'))
+            ->get(route('certificate-issues.create', ['batch' => 1]))
             ->assertOk()
             ->assertSee('Sertifikat berhasil diterbitkan')
             ->assertSee($certificate->nomor_sertifikat)
@@ -188,10 +203,195 @@ class CertificateIssuanceTest extends TestCase
             'tanggal_terbit' => '2026-10-28',
             'periode_mulai' => '2026-11-30',
             'periode_selesai' => '2026-09-01',
+            'data_pendukung' => [
+                'instansi' => 'PT Sukarobot',
+                'posisi' => 'Software Developer',
+                'durasi' => '3 bulan',
+            ],
+            'deskripsi' => 'Sertifikat ujian kompetensi.',
         ]);
 
         $response->assertSessionHasErrors('periode_selesai');
         $this->assertDatabaseCount('sertifikat', 0);
         $this->assertDatabaseCount('nomor_urut', 0);
+    }
+
+    public function test_admin_can_issue_certificates_to_multiple_selected_participants(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-batch-test',
+            'password_hash' => 'password',
+        ]);
+        $participants = collect(['Doni Prasetyo', 'Siti Aminah'])
+            ->merge(collect(range(3, 10))->map(fn ($number) => sprintf('Peserta %02d', $number)))
+            ->map(fn ($name) => Peserta::query()->create([
+                'nama' => $name,
+                'email' => str_replace(' ', '.', strtolower($name)).'@example.test',
+            ]));
+        $type = JenisSertifikat::query()->create([
+            'kode' => 'MAGANG',
+            'nama_jenis' => 'Magang',
+            'aktif' => true,
+        ]);
+        $template = TemplateSertifikat::query()->create([
+            'id_jenis' => $type->id_jenis,
+            'nama_template' => 'Template Magang',
+            'berkas_desain' => 'certificate-templates/background.png',
+            'aktif' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('certificate-issues.create'))
+            ->assertOk()
+            ->assertSee('name="id_peserta[]"', false)
+            ->assertSee('Pilih semua peserta yang tampil')
+            ->assertSee('Pilih jenis sertifikat untuk melihat peserta yang dapat dipilih.')
+            ->assertSee('Instansi/perusahaan magang');
+
+        $response = $this->actingAs($admin)->post(route('certificate-issues.store'), [
+            'id_peserta' => $participants->pluck('id_peserta')->all(),
+            'id_jenis' => $type->id_jenis,
+            'id_template' => $template->id_template,
+            'tanggal_terbit' => '2026-10-28',
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'data_pendukung' => [
+                'instansi' => 'PT Sukarobot',
+                'posisi' => 'Software Developer',
+                'durasi' => '3 bulan',
+            ],
+            'deskripsi' => 'Telah menyelesaikan program magang.',
+        ]);
+
+        $response->assertRedirect(route('certificate-issues.create', ['batch' => 1]));
+        $this->assertDatabaseCount('sertifikat', 10);
+        $certificates = Sertifikat::query()->orderBy('id_sertifikat')->get();
+        $this->assertSame('MAGANG/2026/0001', $certificates[0]->nomor_sertifikat);
+        $this->assertSame('MAGANG/2026/0002', $certificates[1]->nomor_sertifikat);
+        $this->assertSame('Telah menyelesaikan program magang.', $certificates[0]->deskripsi);
+        $this->assertSame('Telah menyelesaikan program magang.', $certificates[1]->deskripsi);
+        $this->assertSame(Sertifikat::PDF_STATUS_PENDING, $certificates[0]->pdf_status);
+        $this->assertSame(Sertifikat::PDF_STATUS_PENDING, $certificates[1]->pdf_status);
+        $this->assertSame(10, $certificates->count());
+        Queue::assertPushedOn('certificate-pdfs', GenerateCertificatePdf::class);
+        Queue::assertPushed(GenerateCertificatePdf::class, 10);
+
+        $this->actingAs($admin)
+            ->get(route('certificate-issues.create', ['batch' => 1]))
+            ->assertOk()
+            ->assertSee('10 sertifikat berhasil disimpan.')
+            ->assertSee('Doni Prasetyo')
+            ->assertSee('Peserta 10')
+            ->assertSee('PDF sedang diproses')
+            ->assertDontSee(route('certificate-issues.download', $certificates[0]));
+        $this->actingAs($admin)
+            ->post(route('certificate-issues.download-batch'), [
+                'certificate_ids' => $certificates->pluck('id_sertifikat')->all(),
+            ])
+            ->assertRedirect(route('certificate-issues.create', ['batch' => 1]))
+            ->assertSessionHasErrors('download');
+
+        if (class_exists(ZipArchive::class)) {
+            $this->mock(CertificatePdfService::class, function (MockInterface $mock) {
+                $mock->shouldReceive('render')->times(10)->andReturn('%PDF-test');
+            });
+            foreach (Queue::pushed(GenerateCertificatePdf::class) as $job) {
+                $job->handle(app(CertificatePdfService::class));
+            }
+
+            $this->actingAs($admin)
+                ->get(route('certificate-issues.create', ['batch' => 1]))
+                ->assertOk()
+                ->assertSee('Unduh semua PDF (ZIP)');
+
+            $response = $this->actingAs($admin)->post(route('certificate-issues.download-batch'), [
+                'certificate_ids' => $certificates->pluck('id_sertifikat')->all(),
+            ]);
+            $response->assertOk()->assertDownload('sertifikat-batch.zip');
+            $archivePath = $response->baseResponse->getFile()->getPathname();
+
+            try {
+                $archive = new ZipArchive;
+                self::assertTrue($archive->open($archivePath));
+                self::assertSame(10, $archive->numFiles);
+                self::assertSame('MAGANG-2026-0001.pdf', $archive->getNameIndex(0));
+                $archive->close();
+            } finally {
+                if (is_file($archivePath)) {
+                    unlink($archivePath);
+                }
+            }
+        }
+    }
+
+    public function test_internship_certificate_requires_a_duration(): void
+    {
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-internship-validation-test',
+            'password_hash' => 'password',
+        ]);
+        $participant = Peserta::query()->create([
+            'nama' => 'Doni Prasetyo',
+            'email' => 'doni@example.test',
+        ]);
+        $type = JenisSertifikat::query()->create([
+            'kode' => 'MAGANG',
+            'nama_jenis' => 'Magang',
+            'aktif' => true,
+        ]);
+        $template = TemplateSertifikat::query()->create([
+            'id_jenis' => $type->id_jenis,
+            'nama_template' => 'Template Magang',
+            'berkas_desain' => 'certificate-templates/background.png',
+            'aktif' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('certificate-issues.store'), [
+            'id_peserta' => [$participant->id_peserta],
+            'id_jenis' => $type->id_jenis,
+            'id_template' => $template->id_template,
+            'tanggal_terbit' => '2026-10-28',
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'data_pendukung' => [
+                'instansi' => 'PT Sukarobot',
+                'posisi' => 'Software Developer',
+            ],
+            'deskripsi' => 'Telah menyelesaikan program magang.',
+        ])->assertSessionHasErrors('data_pendukung.durasi');
+
+        $this->assertDatabaseCount('sertifikat', 0);
+
+        $competencyType = JenisSertifikat::query()->create([
+            'kode' => 'UJIKOM',
+            'nama_jenis' => 'Uji Kompetensi',
+            'aktif' => true,
+        ]);
+        $competencyTemplate = TemplateSertifikat::query()->create([
+            'id_jenis' => $competencyType->id_jenis,
+            'nama_template' => 'Template Ujikom',
+            'berkas_desain' => 'certificate-templates/ujikom.png',
+            'aktif' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('certificate-issues.store'), [
+            'id_peserta' => [$participant->id_peserta],
+            'id_jenis' => $competencyType->id_jenis,
+            'id_template' => $competencyTemplate->id_template,
+            'tanggal_terbit' => '2026-10-28',
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'data_pendukung' => [
+                'skema' => 'Teknisi Robotika',
+                'bidang' => 'Otomasi dan robotika',
+            ],
+            'deskripsi' => 'Telah lulus uji kompetensi.',
+        ])->assertSessionHasErrors('data_pendukung.nilai');
+
+        $this->assertDatabaseCount('sertifikat', 0);
     }
 }
