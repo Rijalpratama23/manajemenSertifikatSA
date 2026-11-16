@@ -1,6 +1,7 @@
 <x-admin.layout title="Terbitkan Sertifikat">
     <div class="certificate-issuance-page">
         @if ($issuedCertificate)
+            <x-admin.flash-message />
             <header class="dashboard-header certificate-issuance-heading">
                 <div>
                     <h1>Terbitkan Sertifikat</h1>
@@ -16,10 +17,56 @@
                 </span>
                 <div>
                     <strong>Sertifikat berhasil diterbitkan</strong>
-                    <span>Sertifikat atas nama {{ $issuedCertificate->peserta->nama }} berhasil disimpan.</span>
+                    <span>
+                        @if ($issuedCertificates->count() > 1)
+                            {{ $issuedCertificates->count() }} sertifikat berhasil disimpan.
+                        @else
+                            Sertifikat atas nama {{ $issuedCertificate->peserta->nama }} berhasil disimpan.
+                        @endif
+                    </span>
                 </div>
             </div>
 
+            @if ($issuedCertificates->count() > 1)
+                <section class="certificate-issued-details-panel certificate-issued-batch-panel" aria-label="Sertifikat yang diterbitkan">
+                    <h2>Sertifikat yang diterbitkan</h2>
+                    <ul>
+                        @foreach ($issuedCertificates as $certificate)
+                            <li>
+                                <span><strong>{{ $certificate->peserta->nama }}</strong><small>{{ $certificate->nomor_sertifikat }}</small></span>
+                                <span>
+                                    @if ($certificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $certificate->berkas_pdf)
+                                        <a href="{{ route('certificate-issues.download', $certificate) }}">Unduh PDF</a>
+                                    @else
+                                        <small>
+                                            @if ($certificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
+                                                PDF gagal dibuat
+                                            @else
+                                                PDF sedang diproses
+                                            @endif
+                                        </small>
+                                    @endif
+                                    <a href="{{ route('certificate-archive.show', $certificate) }}">Lihat arsip</a>
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                        @if ($issuedBatchReady)
+                            <form method="POST" action="{{ route('certificate-issues.download-batch') }}">
+                                @csrf
+                                @foreach ($issuedCertificates as $certificate)
+                                    <input type="hidden" name="certificate_ids[]" value="{{ $certificate->id_sertifikat }}">
+                                @endforeach
+                                <button class="certificate-archive-download-all" type="submit">Unduh semua PDF (ZIP)</button>
+                            </form>
+                        @else
+                            <p class="certificate-issued-note" role="status">
+                                Unduh ZIP tersedia setelah semua PDF selesai diproses.
+                            </p>
+                        @endif
+                    <a class="certificate-issued-another" href="{{ route('certificate-issues.create') }}">Terbitkan sertifikat lain</a>
+                </section>
+            @else
             <div class="certificate-issued-columns">
                 <section class="certificate-issued-details-panel" aria-label="Informasi sertifikat">
                     <div class="certificate-issued-number">
@@ -49,8 +96,19 @@
                     <p class="certificate-issued-note">
                         Sampaikan nomor sertifikat kepada peserta. Peserta dapat mengunduh sertifikat dengan memasukkan nomor ini dan email terdaftar.
                     </p>
+                    @if ($issuedCertificate->pdf_status !== \App\Models\Sertifikat::PDF_STATUS_COMPLETED || ! $issuedCertificate->berkas_pdf)
+                        <p class="certificate-issued-note" role="status">
+                            @if ($issuedCertificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
+                                PDF gagal dibuat setelah beberapa percobaan. Periksa log aplikasi atau hubungi administrator.
+                            @else
+                                PDF sedang diproses di latar belakang. Periksa kembali arsip beberapa saat lagi.
+                            @endif
+                        </p>
+                    @endif
                     <div class="certificate-issued-actions">
-                        <a class="certificate-issued-download" href="{{ route('certificate-issues.download', $issuedCertificate) }}">Unduh PDF</a>
+                        @if ($issuedCertificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $issuedCertificate->berkas_pdf)
+                            <a class="certificate-issued-download" href="{{ route('certificate-issues.download', $issuedCertificate) }}">Unduh PDF</a>
+                        @endif
                         <a class="certificate-issued-history" href="{{ route('certificate-archive.show', $issuedCertificate) }}">Lihat di Arsip</a>
                     </div>
                     <a class="certificate-issued-another" href="{{ route('certificate-issues.create') }}">Terbitkan untuk peserta lain</a>
@@ -58,15 +116,20 @@
 
                 <section class="certificate-issued-preview-panel" aria-labelledby="issued-preview-title">
                     <h2 id="issued-preview-title">Hasil PDF</h2>
-                    <div class="certificate-issued-pdf-frame">
-                        <iframe
-                            src="{{ route('certificate-issues.preview', $issuedCertificate) }}#toolbar=0&navpanes=0&scrollbar=0"
-                            title="Pratinjau PDF sertifikat {{ $issuedCertificate->nomor_sertifikat }}"
-                        ></iframe>
-                    </div>
-                    <p>Pratinjau sertifikat yang telah diterbitkan.</p>
+                    @if ($issuedCertificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_COMPLETED && $issuedCertificate->berkas_pdf)
+                        <div class="certificate-issued-pdf-frame">
+                            <iframe
+                                src="{{ route('certificate-issues.preview', $issuedCertificate) }}#toolbar=0&navpanes=0&scrollbar=0"
+                                title="Pratinjau PDF sertifikat {{ $issuedCertificate->nomor_sertifikat }}"
+                            ></iframe>
+                        </div>
+                        <p>Pratinjau sertifikat yang telah diterbitkan.</p>
+                    @else
+                        <p>Pratinjau akan tersedia setelah PDF selesai diproses.</p>
+                    @endif
                 </section>
             </div>
+            @endif
         @else
             <x-admin.flash-message />
             <header class="dashboard-header certificate-issuance-heading">
@@ -104,13 +167,17 @@
                     @csrf
                     <div class="certificate-issuance-columns">
                         <div class="certificate-issuance-form-panel">
+                            <x-admin.certificate-issuance.type-step
+                                :jenis-sertifikat="$jenisSertifikat"
+                                :reissue-certificate="$reissueCertificate"
+                            />
                             <x-admin.certificate-issuance.participant-step
                                 :peserta="$peserta"
                                 :reissue-certificate="$reissueCertificate"
                             />
                             <x-admin.certificate-issuance.details-step
-                                :jenis-sertifikat="$jenisSertifikat"
                                 :reissue-certificate="$reissueCertificate"
+                                :issuance-fields-by-type="$issuanceFieldsByType"
                             />
                         </div>
                         <aside class="certificate-issuance-aside">

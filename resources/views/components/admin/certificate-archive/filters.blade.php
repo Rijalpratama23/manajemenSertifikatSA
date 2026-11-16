@@ -52,7 +52,7 @@
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 3.5v11m0 0 4-4m-4 4-4-4M4.5 15v4.5h15V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Unduh semua hasil
+            Unduh semua hasil (ZIP)
         </button>
     </div>
 </form>

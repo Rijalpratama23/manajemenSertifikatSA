@@ -9,9 +9,11 @@
             <span class="issuance-preview-given">diberikan kepada</span>
             <strong class="issuance-preview-participant" data-preview-participant>Nama Peserta</strong>
             <span class="issuance-preview-description">
-                telah menyelesaikan program <b data-preview-type>Jenis Sertifikat</b>
+                <span data-preview-description>Deskripsi sertifikat</span>
+                <b data-preview-type>Jenis Sertifikat</b>
                 <span data-preview-period></span>
                 <span data-preview-duration></span>
+                <span data-preview-support></span>
             </span>
             <span class="issuance-preview-score" data-preview-score></span>
             <span class="issuance-preview-number">Nomor: dibuat otomatis saat terbit</span>

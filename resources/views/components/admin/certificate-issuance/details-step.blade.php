@@ -1,35 +1,7 @@
-@props(['jenisSertifikat', 'reissueCertificate' => null])
+@props(['reissueCertificate' => null, 'issuanceFieldsByType' => []])
 
 <section class="certificate-issuance-step certificate-issuance-details">
-    <h2><span>2</span> Jenis dan periode</h2>
-    <div class="certificate-issuance-fields-grid">
-        <label class="certificate-issuance-field">
-            <span>Jenis sertifikat <b>*</b></span>
-            <select name="id_jenis" required data-issuance-type>
-                <option value="">Pilih jenis sertifikat</option>
-                @foreach ($jenisSertifikat as $jenis)
-                    @php($template = $jenis->template->first())
-                    <option
-                        value="{{ $jenis->id_jenis }}"
-                        data-template-id="{{ $template->id_template }}"
-                        data-template-name="{{ $template->nama_template }}"
-                        data-template-url="{{ route('certificate-templates.preview', $template) }}"
-                        data-type-name="{{ $jenis->nama_jenis }}"
-                        @selected((string) old('id_jenis', $reissueCertificate?->id_jenis) === (string) $jenis->id_jenis)
-                    >{{ $jenis->nama_jenis }}</option>
-                @endforeach
-            </select>
-            @error('id_jenis') <small class="field-error">{{ $message }}</small> @enderror
-        </label>
-        <label class="certificate-issuance-field">
-            <span>Tanggal terbit <b>*</b></span>
-            <input type="date" name="tanggal_terbit" value="{{ old('tanggal_terbit', now()->toDateString()) }}" required data-issuance-date>
-            @error('tanggal_terbit') <small class="field-error">{{ $message }}</small> @enderror
-        </label>
-    </div>
-    <input type="hidden" name="id_template" value="{{ old('id_template') }}" data-issuance-template-id>
-    <p class="certificate-issuance-template-used" data-issuance-template-used hidden></p>
-
+    <h2><span>3</span> Periode</h2>
     <div class="certificate-issuance-fields-grid certificate-issuance-period-fields">
         <label class="certificate-issuance-field">
             <span>Periode mulai <b>*</b></span>
@@ -45,22 +17,45 @@
 </section>
 
 <section class="certificate-issuance-step certificate-issuance-support">
-    <h2><span>3</span> Data pendukung <small>(opsional)</small></h2>
-    <div class="certificate-issuance-fields-grid">
-        <label class="certificate-issuance-field">
-            <span>Durasi</span>
-            <input type="text" name="durasi" maxlength="50" value="{{ old('durasi', $reissueCertificate?->durasi) }}" placeholder="Contoh: 3 bulan" data-issuance-duration>
-            @error('durasi') <small class="field-error">{{ $message }}</small> @enderror
-        </label>
-        <label class="certificate-issuance-field">
-            <span>Nilai</span>
-            <input type="text" name="nilai" maxlength="20" value="{{ old('nilai', $reissueCertificate?->nilai) }}" placeholder="Contoh: 92" data-issuance-score>
-            @error('nilai') <small class="field-error">{{ $message }}</small> @enderror
-        </label>
-        <label class="certificate-issuance-field">
-            <span>Predikat</span>
-            <input type="text" name="predikat" maxlength="30" value="{{ old('predikat', $reissueCertificate?->predikat) }}" placeholder="Contoh: Sangat Baik" data-issuance-predicate>
-            @error('predikat') <small class="field-error">{{ $message }}</small> @enderror
-        </label>
-    </div>
+    <h2><span>4</span> Data pendukung</h2>
+    @foreach ($issuanceFieldsByType as $typeCode => $schema)
+        <fieldset class="certificate-issuance-type-fields" data-issuance-type-fields="{{ $typeCode }}" disabled hidden>
+            <legend class="visually-hidden">{{ $schema['title'] }}</legend>
+            <h3>{{ $schema['title'] }}</h3>
+            <div class="certificate-issuance-fields-grid">
+                @foreach ($schema['fields'] as $field)
+                    @php
+                        $reissueValue = isset($field['column'])
+                            ? $reissueCertificate?->{$field['column']}
+                            : ($reissueCertificate?->data_pendukung[$field['key']] ?? '');
+                        $fieldValue = old('data_pendukung.'.$field['key'], $reissueValue);
+                        $fieldMax = $field['max'] ?? 150;
+                    @endphp
+                    <label class="certificate-issuance-field">
+                        <span>{{ $field['label'] }} @if ($field['required']) <b>*</b> @endif</span>
+                        <input
+                            type="text"
+                            name="data_pendukung[{{ $field['key'] }}]"
+                            maxlength="{{ $fieldMax }}"
+                            value="{{ $fieldValue }}"
+                            placeholder="{{ $field['placeholder'] }}"
+                            @required($field['required'])
+                            data-support-input
+                            data-support-label="{{ $field['label'] }}"
+                            data-support-column="{{ $field['column'] ?? '' }}"
+                        >
+                        @if ($errors->has('data_pendukung.'.$field['key']))
+                            <small class="field-error">{{ $errors->first('data_pendukung.'.$field['key']) }}</small>
+                        @endif
+                    </label>
+                @endforeach
+            </div>
+        </fieldset>
+    @endforeach
+    @error('data_pendukung') <small class="field-error">{{ $message }}</small> @enderror
+    <label class="certificate-issuance-field certificate-issuance-description-field">
+        <span>Deskripsi sertifikat <b>*</b></span>
+        <textarea name="deskripsi" maxlength="500" required placeholder="Contoh: Telah menyelesaikan program dengan baik" data-issuance-description>{{ old('deskripsi', $reissueCertificate?->deskripsi) }}</textarea>
+        @error('deskripsi') <small class="field-error">{{ $message }}</small> @enderror
+    </label>
 </section>
