@@ -31,6 +31,7 @@ Route::get('/verifikasi/{token}', [VerifikasiSertifikatController::class, 'show'
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::post('/peserta/import', [PesertaController::class, 'import'])->name('participants.import');
+    Route::get('/peserta/template', [PesertaController::class, 'downloadTemplate'])->name('participants.template.download');
     Route::resource('/peserta', PesertaController::class)->names([
         'index' => 'participants.index',
         'create' => 'participants.create',
@@ -39,7 +40,7 @@ Route::middleware('auth')->group(function () {
         'edit' => 'participants.edit',
         'update' => 'participants.update',
         'destroy' => 'participants.destroy',
-    ]);
+    ])->parameters(['peserta' => 'peserta']);
     Route::get('/jenis-sertifikat', [JenisSertifikatController::class, 'index'])->name('certificate-types.index');
     Route::post('/jenis-sertifikat', [JenisSertifikatController::class, 'store'])->name('certificate-types.store');
     Route::put('/jenis-sertifikat/{jenis}', [JenisSertifikatController::class, 'update'])->name('certificate-types.update');

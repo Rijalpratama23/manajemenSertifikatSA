@@ -3,7 +3,7 @@
         <x-admin.flash-message />
 
         <header class="dashboard-header participants-header">
-            <div>
+            <div class="participants-heading">
                 <h1>Data Peserta</h1>
                 <p>Pengolahan Data Peserta</p>
             </div>
@@ -23,7 +23,10 @@
                     <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
                 </form>
-                <button class="participant-primary-button" type="button" data-open-participant-modal>Tambah Peserta</button>
+                <div class="participants-action-group">
+                    <button class="participant-primary-button" type="button" data-open-participant-modal>Tambah Peserta</button>
+                    <a class="participant-secondary-button" href="{{ route('participants.template.download') }}">Unduh Template</a>
+                </div>
                 <x-admin.participant-import />
             </div>
         </header>

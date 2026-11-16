@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PesertaController extends Controller
 {
@@ -61,12 +62,12 @@ class PesertaController extends Controller
 
     public function show(Peserta $peserta): View
     {
-        $peserta->loadCount('sertifikat')
-            ->load([
-                'sertifikat' => fn ($query) => $query
-                    ->with('jenis:id_jenis,nama_jenis')
-                    ->orderByDesc('tanggal_terbit'),
-            ]);
+        $peserta->load([
+            'sertifikat' => fn ($query) => $query
+                ->with('jenis:id_jenis,nama_jenis')
+                ->orderByDesc('tanggal_terbit'),
+        ]);
+        $peserta->setAttribute('sertifikat_count', $peserta->sertifikat->count());
 
         return view('participants.show', compact('peserta'));
     }
@@ -115,6 +116,14 @@ class PesertaController extends Controller
 
         return redirect()->route('participants.index')
             ->with('success', "{$import->importedCount()} data peserta berhasil diimpor.");
+    }
+
+    public function downloadTemplate(): BinaryFileResponse
+    {
+        return response()->download(
+            resource_path('templates/template_data_peserta.xlsx'),
+            'template_data_peserta.xlsx',
+        );
     }
 
     private function participantRules(): array

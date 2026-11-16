@@ -787,14 +787,23 @@ input {
 }
 
 .participants-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 14px;
     margin-bottom: 18px;
 }
 
 .participants-header-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(300px, 360px);
     align-items: center;
-    justify-content: flex-end;
+    gap: 10px;
+}
+
+.participants-action-group {
+    display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -901,12 +910,50 @@ input {
     font-size: 9px;
 }
 
+.participants-header-actions > .participant-search {
+    width: auto;
+    min-width: 0;
+}
+
+.participants-header-actions > .participant-import-form {
+    width: 100%;
+    min-width: 0;
+    padding: 4px;
+    border: 1px solid #dce8eb;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.participant-import-form .participant-file-picker {
+    max-width: none;
+    min-width: 0;
+    flex: 1;
+    border: 0;
+}
+
+@media (max-width: 1100px) {
+    .participants-header-actions {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .participants-header-actions > .participant-import-form {
+        grid-column: 1 / -1;
+    }
+}
+
 .admin-alert {
     margin: 0 0 14px;
     padding: 11px 14px;
     border: 1px solid transparent;
     border-radius: 12px;
     font-size: 12px;
+    opacity: 1;
+    transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.admin-alert.is-dismissing {
+    opacity: 0;
+    transform: translateY(-4px);
 }
 
 .admin-alert-success {
@@ -1021,6 +1068,7 @@ input {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .admin-alert,
     .app-toast {
         transition: none;
     }
@@ -2227,7 +2275,12 @@ input {
 
     .participants-header-actions {
         width: 100%;
+        grid-template-columns: minmax(0, 1fr) auto;
         justify-content: flex-start;
+    }
+
+    .participants-header-actions > .participant-import-form {
+        grid-column: 1 / -1;
     }
 
     .certificate-types-header {
@@ -2372,7 +2425,7 @@ input {
 
     .participants-header-actions {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .participant-search {
@@ -2380,9 +2433,14 @@ input {
         grid-column: 1 / -1;
     }
 
-    .participants-header-actions > .participant-primary-button,
+    .participants-action-group {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .participants-header-actions > .participant-import-form {
         width: 100%;
+        grid-column: 1 / -1;
     }
 
     .certificate-types-header-actions {
