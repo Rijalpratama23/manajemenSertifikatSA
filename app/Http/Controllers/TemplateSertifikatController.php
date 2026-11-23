@@ -88,12 +88,16 @@ class TemplateSertifikatController extends Controller
         $editTemplate = null;
         $activeTemplates = $this->activeTemplates();
         $selectedType = $validated['jenis'] ?? null;
+        $positionConfig = $this->defaultPositionConfig();
+        $positionElements = $this->positionElements();
 
         return view('certificate-templates.form', compact(
             'jenisSertifikat',
             'editTemplate',
             'activeTemplates',
             'selectedType',
+            'positionConfig',
+            'positionElements',
         ));
     }
 
@@ -109,12 +113,19 @@ class TemplateSertifikatController extends Controller
         $editTemplate = $template;
         $activeTemplates = $this->activeTemplates();
         $selectedType = $template->id_jenis;
+        $positionConfig = array_replace_recursive(
+            $this->defaultPositionConfig(),
+            (array) $template->konfigurasi_posisi,
+        );
+        $positionElements = $this->positionElements();
 
         return view('certificate-templates.form', compact(
             'jenisSertifikat',
             'editTemplate',
             'activeTemplates',
             'selectedType',
+            'positionConfig',
+            'positionElements',
         ));
     }
 
@@ -128,7 +139,7 @@ class TemplateSertifikatController extends Controller
             throw new RuntimeException('Berkas template gagal disimpan.');
         }
 
-        DB::transaction(function () use ($validated, $path) {
+        DB::transaction(function () use ($validated, $path, $request) {
             if ($validated['aktif']) {
                 TemplateSertifikat::query()
                     ->where('id_jenis', $validated['id_jenis'])
@@ -140,6 +151,7 @@ class TemplateSertifikatController extends Controller
                 'id_jenis' => $validated['id_jenis'],
                 'nama_template' => $validated['nama_template'],
                 'berkas_desain' => $path,
+                'konfigurasi_posisi' => $this->normalizePositionConfig($request->input('posisi')),
                 'aktif' => $validated['aktif'],
             ]);
         });
@@ -173,6 +185,8 @@ class TemplateSertifikatController extends Controller
         } else {
             unset($validated['berkas_desain']);
         }
+
+        $validated['konfigurasi_posisi'] = $this->normalizePositionConfig($request->input('posisi'));
 
         DB::transaction(function () use ($template, $validated) {
             if (($validated['aktif'] ?? $template->aktif) && isset($validated['id_jenis'])) {
@@ -268,6 +282,28 @@ class TemplateSertifikatController extends Controller
                 'max:5120',
             ],
             'aktif' => ['required', 'boolean'],
+            'posisi' => ['nullable', 'array'],
+            'posisi.nama.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.nama.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.nama.size' => ['nullable', 'numeric', 'between:6,60'],
+            'posisi.nomor.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.nomor.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.nomor.size' => ['nullable', 'numeric', 'between:6,40'],
+            'posisi.deskripsi.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.deskripsi.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.deskripsi.size' => ['nullable', 'numeric', 'between:6,40'],
+            'posisi.tanggal.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.tanggal.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.tanggal.size' => ['nullable', 'numeric', 'between:6,40'],
+            'posisi.qr.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.qr.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.qr.size' => ['nullable', 'numeric', 'between:5,40'],
+            'posisi.diberikan.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.diberikan.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.diberikan.size' => ['nullable', 'numeric', 'between:6,40'],
+            'posisi.judul.x' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.judul.y' => ['nullable', 'numeric', 'between:0,100'],
+            'posisi.judul.size' => ['nullable', 'numeric', 'between:6,60'],
         ];
     }
 
@@ -277,5 +313,50 @@ class TemplateSertifikatController extends Controller
             ->where('aktif', true)
             ->with('jenis:id_jenis,nama_jenis')
             ->get(['id_template', 'id_jenis', 'nama_template']);
+    }
+
+    private function defaultPositionConfig(): array
+    {
+        return [
+            'nama' => ['x' => 50, 'y' => 40, 'size' => 25],
+            'nomor' => ['x' => 22, 'y' => 86, 'size' => 11],
+            'deskripsi' => ['x' => 50, 'y' => 58, 'size' => 15],
+            'tanggal' => ['x' => 50, 'y' => 76, 'size' => 13],
+            'qr' => ['x' => 82, 'y' => 86, 'size' => 12],
+            'diberikan' => ['x' => 50, 'y' => 31, 'size' => 13],
+            'judul' => ['x' => 50, 'y' => 17, 'size' => 30],
+        ];
+    }
+
+    private function normalizePositionConfig(mixed $position): array
+    {
+        $defaults = $this->defaultPositionConfig();
+
+        if (! is_array($position)) {
+            return $defaults;
+        }
+
+        foreach ($defaults as $key => $default) {
+            $defaults[$key] = [
+                'x' => isset($position[$key]['x']) ? (float) $position[$key]['x'] : $default['x'],
+                'y' => isset($position[$key]['y']) ? (float) $position[$key]['y'] : $default['y'],
+                'size' => isset($position[$key]['size']) ? (float) $position[$key]['size'] : $default['size'],
+            ];
+        }
+
+        return $defaults;
+    }
+
+    private function positionElements(): array
+    {
+        return [
+            'judul' => ['label' => 'Judul Sertifikat', 'color' => 'teal'],
+            'diberikan' => ['label' => 'Diberikan Kepada', 'color' => 'cyan'],
+            'nama' => ['label' => 'Nama Peserta', 'color' => 'gold'],
+            'nomor' => ['label' => 'Nomor Sertifikat', 'color' => 'green'],
+            'deskripsi' => ['label' => 'Deskripsi', 'color' => 'blue'],
+            'tanggal' => ['label' => 'Tanggal / Periode', 'color' => 'purple'],
+            'qr' => ['label' => 'QR Verifikasi', 'color' => 'red'],
+        ];
     }
 }

@@ -32,20 +32,18 @@
             </div>
         </header>
 
-        <x-admin.panel title="Tabel Peserta" :subtitle="'Menampilkan ' . $participants->count() . ' dari ' . $participants->total() . ' peserta'" class="participants-panel">
+        <x-admin.panel
+            :title="$selectedCertificateTypeName ? 'Peserta ' . $selectedCertificateTypeName : 'Tabel Peserta'"
+            :subtitle="'Menampilkan ' . $participants->count() . ' dari ' . $participants->total() . ' peserta'"
+            class="participants-panel"
+        >
             <div class="participant-table-toolbar">
                 <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options">
                     <input type="hidden" name="search" value="{{ $search }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
-                    <label for="participants-certificate-type">Jenis:</label>
-                    <select id="participants-certificate-type" name="jenis">
-                        <option value="">Semua jenis</option>
-                        @foreach ($certificateTypes as $certificateType)
-                            <option value="{{ $certificateType->id_jenis }}" @selected($selectedType === (string) $certificateType->id_jenis)>
-                                {{ $certificateType->nama_jenis }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @if ($selectedType !== '')
+                        <input type="hidden" name="jenis" value="{{ $selectedType }}">
+                    @endif
                     <label for="participants-per-page">Baris:</label>
                     <select id="participants-per-page" name="per_page">
                         @foreach ([10, 25, 50] as $option)
@@ -61,7 +59,7 @@
                 </form>
             </div>
 
-            <x-admin.participant-table :participants="$participants" />
+            <x-admin.participant-table :participants="$participants" :is-course-view="$isCourseView" />
 
             <footer class="participant-table-footer">
                 <p>
