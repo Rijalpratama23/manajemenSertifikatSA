@@ -25,17 +25,52 @@
             </svg>
             <span>Jenis Sertifikat</span>
         </a>
-        <a
-            class="admin-nav-item {{ request()->routeIs('participants.*') ? 'is-active' : '' }}"
-            href="{{ route('participants.index') }}"
-            @if (request()->routeIs('participants.*')) aria-current="page" @endif
+        <div
+            class="admin-nav-group participant-nav-dropdown {{ request()->routeIs('participants.*') ? 'is-active' : '' }}"
+            data-participant-nav-dropdown
         >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
-                <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m2 3.2a5 5 0 0 1 2.5 4.3V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-            <span>Data Peserta</span>
-        </a>
+            <button
+                class="admin-nav-item participant-nav-trigger"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-participant-nav-trigger
+            >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20M16 5.5a3 3 0 0 1 0 5.8m2 3.2a5 5 0 0 1 2.5 4.3V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <span>Data Peserta</span>
+                <svg class="participant-nav-chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m8 10 4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div
+                class="admin-nav-submenu participant-nav-menu"
+                role="menu"
+                aria-label="Jenis sertifikat untuk data peserta"
+                data-participant-nav-menu
+                hidden
+            >
+                <a
+                    class="admin-nav-subitem {{ request()->routeIs('participants.*') && ! request('jenis') ? 'is-active' : '' }}"
+                    href="{{ route('participants.index') }}"
+                    role="menuitem"
+                >
+                    Semua Jenis
+                </a>
+                @foreach ($sidebarCertificateTypes as $certificateType)
+                    <a
+                        class="admin-nav-subitem {{ (string) request('jenis') === (string) $certificateType->id_jenis ? 'is-active' : '' }}"
+                        href="{{ route('participants.index', ['jenis' => $certificateType->id_jenis]) }}"
+                        role="menuitem"
+                        @if ((string) request('jenis') === (string) $certificateType->id_jenis) aria-current="page" @endif
+                    >
+                        {{ $certificateType->nama_jenis }}
+                    </a>
+                @endforeach
+            </div>
+        </div>
         <a
             class="admin-nav-item {{ request()->routeIs('certificate-templates.*') ? 'is-active' : '' }}"
             href="{{ route('certificate-templates.index') }}"

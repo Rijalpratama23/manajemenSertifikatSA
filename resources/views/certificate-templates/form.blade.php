@@ -110,6 +110,60 @@
                         @error('berkas_desain') <small class="field-error">{{ $message }}</small> @enderror
                     </label>
 
+                    <section class="certificate-template-position-editor" aria-labelledby="template-position-heading">
+                        <header>
+                            <div>
+                                <h2 id="template-position-heading"><span aria-hidden="true"></span>Posisi &amp; Ukuran Font</h2>
+                                <p>Ubah nilai X/Y atau geser elemen langsung pada pratinjau.</p>
+                            </div>
+                            <button type="button" class="certificate-template-position-reset" data-reset-template-position>
+                                Reset Posisi
+                            </button>
+                        </header>
+
+                        <div class="certificate-template-position-grid">
+                            @foreach ($positionElements as $key => $element)
+                                @php($position = $positionConfig[$key])
+                                <fieldset class="certificate-template-position-card is-{{ $element['color'] }}" data-position-card="{{ $key }}">
+                                    <legend>{{ $element['label'] }}</legend>
+                                    <label>
+                                        <span>X (%)</span>
+                                        <input type="number" name="posisi[{{ $key }}][x]" value="{{ old('posisi.'.$key.'.x', $position['x']) }}" min="0" max="100" step="0.5" data-position-x="{{ $key }}">
+                                    </label>
+                                    <label>
+                                        <span>Y (%)</span>
+                                        <input type="number" name="posisi[{{ $key }}][y]" value="{{ old('posisi.'.$key.'.y', $position['y']) }}" min="0" max="100" step="0.5" data-position-y="{{ $key }}">
+                                    </label>
+                                    <label>
+                                        <span>Ukuran</span>
+                                        <input type="number" name="posisi[{{ $key }}][size]" value="{{ old('posisi.'.$key.'.size', $position['size']) }}" min="{{ $key === 'qr' ? 5 : 6 }}" max="{{ in_array($key, ['nama', 'judul']) ? 60 : 40 }}" step="1" data-position-size="{{ $key }}">
+                                    </label>
+                                </fieldset>
+                            @endforeach
+                        </div>
+
+                        <div class="certificate-template-live-preview-canvas" data-template-position-canvas>
+                            <img src="{{ $existingDesignIsImage ? route('certificate-templates.preview', $editTemplate) : '' }}" alt="" data-template-position-background @if (!$existingDesignIsImage) hidden @endif>
+                            @foreach ($positionElements as $key => $element)
+                                <span
+                                    class="certificate-template-position-item is-{{ $key }}"
+                                    data-position-item="{{ $key }}"
+                                    data-position-key="{{ $key }}"
+                                >
+                                    @switch($key)
+                                        @case('judul') SERTIFIKAT @break
+                                        @case('diberikan') diberikan kepada @break
+                                        @case('nama') Nama Peserta @break
+                                        @case('nomor') Nomor: SA/2026/0001 @break
+                                        @case('deskripsi') Telah menyelesaikan program pelatihan dengan baik @break
+                                        @case('tanggal') 23 November 2026 @break
+                                        @case('qr') QR @break
+                                    @endswitch
+                                </span>
+                            @endforeach
+                        </div>
+                    </section>
+
                     <section class="certificate-template-live-preview" aria-labelledby="template-preview-heading">
                         <h2 id="template-preview-heading">Pratinjau</h2>
                         <div class="certificate-template-live-preview-card" data-template-preview-card>
@@ -160,9 +214,12 @@
             <div class="certificate-template-form-preview-canvas" data-template-preview-canvas>
                 <span class="preview-sample-organization">SUKAROBOT ACADEMY</span>
                 <span class="preview-sample-title">SERTIFIKAT</span>
+                <span class="preview-sample-given">diberikan kepada</span>
                 <span class="preview-sample-recipient">Nama Peserta</span>
                 <span class="preview-sample-description">Telah menyelesaikan program pelatihan dengan baik</span>
                 <span class="preview-sample-signature">Direktur Sukarobot Academy</span>
+                <span class="preview-sample-qr">QR</span>
+                <span class="preview-sample-number">Nomor: SA/2026/0001</span>
             </div>
         </dialog>
     </div>

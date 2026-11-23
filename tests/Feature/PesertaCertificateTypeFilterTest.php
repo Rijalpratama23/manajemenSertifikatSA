@@ -8,11 +8,86 @@ use App\Models\Peserta;
 use App\Models\Sertifikat;
 use App\Models\TemplateSertifikat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
 use Tests\TestCase;
 
 class PesertaCertificateTypeFilterTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_all_types_combines_regular_and_course_participants(): void
+    {
+        Schema::create('kursus', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('nis');
+            $table->string('nama');
+            $table->integer('id_level')->nullable();
+            $table->integer('id_sertifikat')->nullable();
+        });
+
+        DB::table('kursus')->insert([
+            ['nis' => 202300001, 'nama' => 'Peserta Kursus Satu'],
+            ['nis' => 202300002, 'nama' => 'Peserta Kursus Dua'],
+        ]);
+
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-all-types-filter-test',
+            'password_hash' => 'password',
+        ]);
+        Peserta::query()->create([
+            'nama' => 'Peserta Umum',
+            'email' => 'umum@example.test',
+            'asal_instansi' => 'Universitas Contoh',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('participants.index'))
+            ->assertOk()
+            ->assertSee('Peserta Umum')
+            ->assertSee('Peserta Kursus Satu')
+            ->assertSee('Peserta Kursus Dua')
+            ->assertViewHas('participants', function ($participants) {
+                return $participants->total() === 3;
+            });
+
+        Schema::dropIfExists('kursus');
+    }
+
+    public function test_course_type_reads_participants_from_course_table(): void
+    {
+        Schema::create('kursus', function (Blueprint $table) {
+            $table->increments('id');
+            $table->integer('nis');
+            $table->string('nama');
+            $table->integer('id_level')->nullable();
+            $table->integer('id_sertifikat')->nullable();
+        });
+
+        DB::table('kursus')->insert([
+            ['nis' => 202300001, 'nama' => 'Peserta Kursus Satu'],
+            ['nis' => 202300002, 'nama' => 'Peserta Kursus Dua'],
+        ]);
+
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-course-filter-test',
+            'password_hash' => 'password',
+        ]);
+        $courseType = $this->createCertificateType('KURSUS', 'Kursus');
+
+        $this->actingAs($admin)
+            ->get(route('participants.index', ['jenis' => $courseType->id_jenis]))
+            ->assertOk()
+            ->assertSee('Peserta Kursus Satu')
+            ->assertSee('202300001')
+            ->assertSee('Peserta Kursus Dua')
+            ->assertSee('NIS');
+
+        Schema::dropIfExists('kursus');
+    }
 
     public function test_admin_can_filter_participants_by_certificate_type_while_searching(): void
     {
@@ -45,8 +120,13 @@ class PesertaCertificateTypeFilterTest extends TestCase
             ->assertSee('Peserta Magang')
             ->assertDontSee('Peserta Seminar')
             ->assertDontSee('Peserta Tanpa Sertifikat')
-            ->assertSee('Semua jenis')
+            ->assertSee('Semua Jenis')
             ->assertSee('Magang')
+            ->assertSee('NIS')
+            ->assertSee('Asal Sekolah/Universitas')
+            ->assertDontSee('<th scope="col">Email</th>', false)
+            ->assertSee(route('participants.index', ['jenis' => $magang->id_jenis]), false)
+            ->assertDontSee(route('participants.index', ['jenis' => $seminar->id_jenis]), false)
             ->assertSee('name="jenis" value="'.$magang->id_jenis.'"', false)
             ->assertViewHas('participants', function ($participants) use ($participantWithBothTypes) {
                 return $participants->total() === 1

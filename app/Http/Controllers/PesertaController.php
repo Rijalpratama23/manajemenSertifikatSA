@@ -10,6 +10,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -28,40 +31,165 @@ class PesertaController extends Controller
         $selectedType = (string) ($validated['jenis'] ?? '');
         $perPage = (int) ($validated['per_page'] ?? 10);
         $sort = $validated['sort'] ?? 'newest';
+        $isCourseView = false;
 
-        $participants = Peserta::query()
-            ->withCount('sertifikat')
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('nama', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('asal_instansi', 'like', "%{$search}%");
-                });
-            })
-            ->when($selectedType !== '', fn ($query) => $query->whereHas(
-                'sertifikat',
-                fn ($certificateQuery) => $certificateQuery->where('id_jenis', $selectedType),
-            ))
-            ->orderBy('dibuat_pada', $sort === 'oldest' ? 'asc' : 'desc')
-            ->orderBy('id_peserta', $sort === 'oldest' ? 'asc' : 'desc')
-            ->paginate($perPage)
-            ->withQueryString();
-
-        $editParticipant = isset($validated['edit'])
-            ? Peserta::query()->findOrFail($validated['edit'])
+        $selectedTypeCode = $selectedType !== ''
+            ? JenisSertifikat::query()->whereKey((int) $selectedType)->value('kode')
             : null;
+
+        if ($selectedTypeCode === 'KURSUS') {
+            $isCourseView = true;
+            $participants = DB::table('kursus')
+                ->select(['id', 'nis', 'nama'])
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query->where('nama', 'like', "%{$search}%")
+                            ->orWhere('nis', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('id', $sort === 'oldest' ? 'asc' : 'desc')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $participants->getCollection()->transform(function ($course) {
+                $course->sertifikat_count = 0;
+                $course->email = null;
+                $course->asal_instansi = null;
+                $course->dibuat_pada = null;
+                $course->id_peserta = $course->id;
+                $course->source = 'kursus';
+                return $course;
+            });
+            $editParticipant = null;
+        } elseif ($selectedType === '') {
+            $courseParticipants = Schema::hasTable('kursus')
+                ? DB::table('kursus')->select(['id', 'nis', 'nama'])->get()
+                : collect();
+
+            $regularParticipants = Peserta::query()
+                ->withCount('sertifikat')
+                ->get();
+
+            $combined = collect();
+
+            foreach ($regularParticipants as $participant) {
+                $participant->setAttribute('nis', null);
+                $participant->setAttribute('source', 'peserta');
+                $combined->put('peserta:'.strtolower(trim((string) $participant->nama)), $participant);
+            }
+
+            foreach ($courseParticipants as $course) {
+                $key = 'peserta:'.strtolower(trim((string) $course->nama));
+
+                if ($combined->has($key)) {
+                    $participant = $combined->get($key);
+                    $participant->setAttribute('nis', $course->nis);
+                    $participant->setAttribute('source', 'peserta-kursus');
+                    $combined->put($key, $participant);
+                } else {
+                    $course->id_peserta = null;
+                    $course->email = null;
+                    $course->asal_instansi = null;
+                    $course->sertifikat_count = 0;
+                    $course->dibuat_pada = null;
+                    $course->source = 'kursus';
+                    $combined->put('kursus:'.$course->id, $course);
+                }
+            }
+
+            $combined = $combined->values();
+
+            if ($search !== '') {
+                $needle = strtolower($search);
+                $combined = $combined->filter(function ($participant) use ($needle) {
+                    return str_contains(strtolower((string) $participant->nama), $needle)
+                        || str_contains(strtolower((string) $participant->email), $needle)
+                        || str_contains(strtolower((string) $participant->asal_instansi), $needle)
+                        || str_contains(strtolower((string) $participant->nis), $needle);
+                })->values();
+            }
+
+            $combined = $sort === 'oldest'
+                ? $combined->sortBy(fn ($participant) =>
+                    $participant->dibuat_pada?->getTimestamp()
+                    ?? (is_numeric($participant->nis) ? (int) $participant->nis : PHP_INT_MAX)
+                )->values()
+                : $combined->sortByDesc(fn ($participant) =>
+                    $participant->dibuat_pada?->getTimestamp()
+                    ?? (is_numeric($participant->nis) ? (int) $participant->nis : 0)
+                )->values();
+
+            $page = max(1, (int) $request->integer('page', 1));
+            $participants = new LengthAwarePaginator(
+                $combined->slice(($page - 1) * $perPage, $perPage)->values(),
+                $combined->count(),
+                $perPage,
+                $page,
+                ['path' => $request->url(), 'query' => $request->query()],
+            );
+            $editParticipant = isset($validated['edit'])
+                ? Peserta::query()->findOrFail($validated['edit'])
+                : null;
+        } else {
+            $participants = Peserta::query()
+                ->withCount('sertifikat')
+                ->when($search !== '', function ($query) use ($search) {
+                    $query->where(function ($query) use ($search) {
+                        $query->where('nama', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('asal_instansi', 'like', "%{$search}%");
+                    });
+                })
+                ->when($selectedType !== '', fn ($query) => $query->whereHas(
+                    'sertifikat',
+                    fn ($certificateQuery) => $certificateQuery->where('id_jenis', $selectedType),
+                ))
+                ->orderBy('dibuat_pada', $sort === 'oldest' ? 'asc' : 'desc')
+                ->orderBy('id_peserta', $sort === 'oldest' ? 'asc' : 'desc')
+                ->paginate($perPage)
+                ->withQueryString();
+
+            $courseNisByName = Schema::hasTable('kursus')
+                ? DB::table('kursus')
+                    ->select(['nama', 'nis'])
+                    ->get()
+                    ->keyBy(fn ($course) => strtolower(trim((string) $course->nama)))
+                : collect();
+
+            $participants->getCollection()->transform(function (Peserta $participant) use ($courseNisByName) {
+                $course = $courseNisByName->get(strtolower(trim((string) $participant->nama)));
+                $participant->setAttribute('nis', $course?->nis);
+                $participant->setAttribute('source', 'peserta');
+                return $participant;
+            });
+
+            $editParticipant = isset($validated['edit'])
+                ? Peserta::query()->findOrFail($validated['edit'])
+                : null;
+        }
+
         $certificateTypes = JenisSertifikat::query()
-            ->orderBy('nama_jenis')
-            ->get(['id_jenis', 'nama_jenis']);
+            ->where('aktif', true)
+            ->whereIn('kode', ['KURSUS', 'PKL', 'MAGANG', 'UJIKOM', 'LPK'])
+            ->get(['id_jenis', 'kode', 'nama_jenis'])
+            ->sortBy(fn (JenisSertifikat $certificateType) =>
+                ['KURSUS' => 1, 'PKL' => 2, 'MAGANG' => 3, 'UJIKOM' => 4, 'LPK' => 5][$certificateType->kode]
+            )
+            ->values();
+        $selectedCertificateTypeName = $selectedType !== ''
+            ? ($certificateTypes->firstWhere('id_jenis', (int) $selectedType)?->nama_jenis)
+            : null;
 
         return view('participants.index', compact(
             'participants',
             'certificateTypes',
+            'selectedCertificateTypeName',
             'search',
             'selectedType',
             'perPage',
             'sort',
             'editParticipant',
+            'isCourseView',
         ));
     }
 

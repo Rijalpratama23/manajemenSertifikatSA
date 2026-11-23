@@ -1,5 +1,63 @@
 import './bootstrap';
 
+document.querySelectorAll('[data-participant-nav-dropdown]').forEach((dropdown) => {
+    if (!(dropdown instanceof HTMLElement)) {
+        return;
+    }
+
+    const trigger = dropdown.querySelector('[data-participant-nav-trigger]');
+    const menu = dropdown.querySelector('[data-participant-nav-menu]');
+
+    if (!(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) {
+        return;
+    }
+
+    let closeTimer;
+
+    const closeMenu = (restoreFocus = false) => {
+        window.clearTimeout(closeTimer);
+        trigger.setAttribute('aria-expanded', 'false');
+        menu.classList.remove('is-open');
+        closeTimer = window.setTimeout(() => {
+            menu.hidden = true;
+        }, 160);
+
+        if (restoreFocus) {
+            trigger.focus();
+        }
+    };
+
+    trigger.addEventListener('click', () => {
+        const willOpen = trigger.getAttribute('aria-expanded') !== 'true';
+        trigger.setAttribute('aria-expanded', String(willOpen));
+
+        if (willOpen) {
+            window.clearTimeout(closeTimer);
+            menu.hidden = false;
+            requestAnimationFrame(() => menu.classList.add('is-open'));
+        } else {
+            closeMenu();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (event.target instanceof Node && !dropdown.contains(event.target)) {
+            closeMenu();
+        }
+    });
+
+    dropdown.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeMenu(true);
+        }
+
+        if (event.key === 'ArrowDown' && trigger.getAttribute('aria-expanded') !== 'true') {
+            event.preventDefault();
+            trigger.click();
+        }
+    });
+});
+
 document.querySelectorAll('[data-app-toast]').forEach((toast) => {
     if (!(toast instanceof HTMLElement)) {
         return;
@@ -562,6 +620,116 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
     const previewCanvas = previewDialog?.querySelector('[data-template-preview-canvas]');
     let previewObjectUrl = null;
     let fileSelectionId = 0;
+    const positionCanvas = certificateTemplateForm.querySelector('[data-template-position-canvas]');
+    const positionBackground = certificateTemplateForm.querySelector('[data-template-position-background]');
+    const resetPositionButton = certificateTemplateForm.querySelector('[data-reset-template-position]');
+
+    const positionDefaults = {
+        judul: { x: 50, y: 17, size: 30 },
+        diberikan: { x: 50, y: 31, size: 13 },
+        nama: { x: 50, y: 40, size: 25 },
+        nomor: { x: 22, y: 86, size: 11 },
+        deskripsi: { x: 50, y: 58, size: 15 },
+        tanggal: { x: 50, y: 76, size: 13 },
+        qr: { x: 82, y: 86, size: 12 },
+    };
+
+    const updatePositionItem = (key) => {
+        const item = certificateTemplateForm.querySelector(`[data-position-item="${key}"]`);
+        const xInput = certificateTemplateForm.querySelector(`[data-position-x="${key}"]`);
+        const yInput = certificateTemplateForm.querySelector(`[data-position-y="${key}"]`);
+        const sizeInput = certificateTemplateForm.querySelector(`[data-position-size="${key}"]`);
+
+        if (!(item instanceof HTMLElement) || !(xInput instanceof HTMLInputElement) || !(yInput instanceof HTMLInputElement) || !(sizeInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        item.style.left = `${Math.min(100, Math.max(0, Number(xInput.value) || 0))}%`;
+        item.style.top = `${Math.min(100, Math.max(0, Number(yInput.value) || 0))}%`;
+
+        if (key === 'qr') {
+            item.style.width = `${Math.min(40, Math.max(5, Number(sizeInput.value) || 12))}%`;
+            item.style.height = 'auto';
+            item.style.aspectRatio = '1';
+            item.style.fontSize = '10px';
+        } else {
+            item.style.fontSize = `${Math.min(key === 'nama' || key === 'judul' ? 60 : 40, Math.max(6, Number(sizeInput.value) || 12))}px`;
+        }
+    };
+
+    certificateTemplateForm.querySelectorAll('[data-position-item]').forEach((item) => {
+        if (!(item instanceof HTMLElement)) {
+            return;
+        }
+
+        const key = item.dataset.positionKey;
+        if (!key) {
+            return;
+        }
+        updatePositionItem(key);
+
+        item.addEventListener('pointerdown', (event) => {
+            if (!(positionCanvas instanceof HTMLElement)) {
+                return;
+            }
+
+            event.preventDefault();
+            item.setPointerCapture(event.pointerId);
+
+            const moveItem = (pointerEvent) => {
+                const rect = positionCanvas.getBoundingClientRect();
+                const x = ((pointerEvent.clientX - rect.left) / rect.width) * 100;
+                const y = ((pointerEvent.clientY - rect.top) / rect.height) * 100;
+                const xInput = certificateTemplateForm.querySelector(`[data-position-x="${key}"]`);
+                const yInput = certificateTemplateForm.querySelector(`[data-position-y="${key}"]`);
+
+                if (xInput instanceof HTMLInputElement) {
+                    xInput.value = Math.round(Math.min(100, Math.max(0, x)) * 10) / 10;
+                }
+                if (yInput instanceof HTMLInputElement) {
+                    yInput.value = Math.round(Math.min(100, Math.max(0, y)) * 10) / 10;
+                }
+                updatePositionItem(key);
+            };
+
+            const stopMoving = () => {
+                item.removeEventListener('pointermove', moveItem);
+                item.removeEventListener('pointerup', stopMoving);
+                item.removeEventListener('pointercancel', stopMoving);
+            };
+
+            item.addEventListener('pointermove', moveItem);
+            item.addEventListener('pointerup', stopMoving);
+            item.addEventListener('pointercancel', stopMoving);
+        });
+    });
+
+    certificateTemplateForm.querySelectorAll('[data-position-x], [data-position-y], [data-position-size]').forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+
+        input.addEventListener('input', () => {
+            const key = input.dataset.positionX
+                ?? input.dataset.positionY
+                ?? input.dataset.positionSize;
+            if (key) {
+                updatePositionItem(key);
+            }
+        });
+    });
+
+    resetPositionButton?.addEventListener('click', () => {
+        Object.entries(positionDefaults).forEach(([key, position]) => {
+            ['x', 'y', 'size'].forEach((property) => {
+                const input = certificateTemplateForm.querySelector(`[data-position-${property}="${key}"]`);
+                if (input instanceof HTMLInputElement) {
+                    input.value = String(position[property]);
+                }
+            });
+            updatePositionItem(key);
+        });
+    });
     const initialFileName = fileName instanceof HTMLElement ? fileName.textContent.trim() : '';
     const initialPreviewSrc = previewImage instanceof HTMLImageElement
         ? previewImage.getAttribute('src') ?? ''
@@ -596,8 +764,16 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
             fileName.textContent = initialFileName;
             if (initialPreviewSrc) {
                 previewImage.src = initialPreviewSrc;
+                if (positionBackground instanceof HTMLImageElement) {
+                    positionBackground.src = initialPreviewSrc;
+                    positionBackground.hidden = false;
+                }
             } else {
                 previewImage.removeAttribute('src');
+                if (positionBackground instanceof HTMLImageElement) {
+                    positionBackground.removeAttribute('src');
+                    positionBackground.hidden = true;
+                }
             }
             previewImage.hidden = !hasInitialPreview;
             previewPlaceholder.hidden = hasInitialPreview;
@@ -642,6 +818,10 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
                 }
 
                 previewImage.src = objectUrl;
+                if (positionBackground instanceof HTMLImageElement) {
+                    positionBackground.src = objectUrl;
+                    positionBackground.hidden = false;
+                }
                 previewImage.hidden = false;
                 previewPlaceholder.hidden = true;
                 previewButton.disabled = false;
@@ -733,6 +913,41 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
     ) {
         previewButton.addEventListener('click', () => {
             previewCanvas.style.setProperty('--template-preview-background', `url("${previewImage.src}")`);
+
+            const previewMap = {
+                judul: previewCanvas.querySelector('.preview-sample-title'),
+                diberikan: previewCanvas.querySelector('.preview-sample-given'),
+                nama: previewCanvas.querySelector('.preview-sample-recipient'),
+                nomor: previewCanvas.querySelector('.preview-sample-number'),
+                deskripsi: previewCanvas.querySelector('.preview-sample-description'),
+                tanggal: previewCanvas.querySelector('.preview-sample-signature'),
+                qr: previewCanvas.querySelector('.preview-sample-qr'),
+            };
+
+            previewCanvas.querySelector('.preview-sample-given')?.removeAttribute('hidden');
+            Object.entries(previewMap).forEach(([key, element]) => {
+                if (!(element instanceof HTMLElement)) {
+                    return;
+                }
+
+                const xInput = certificateTemplateForm.querySelector(`[data-position-x="${key}"]`);
+                const yInput = certificateTemplateForm.querySelector(`[data-position-y="${key}"]`);
+                const sizeInput = certificateTemplateForm.querySelector(`[data-position-size="${key}"]`);
+                const x = xInput instanceof HTMLInputElement ? Number(xInput.value) : 50;
+                const y = yInput instanceof HTMLInputElement ? Number(yInput.value) : 50;
+                const size = sizeInput instanceof HTMLInputElement ? Number(sizeInput.value) : 12;
+
+                element.style.left = `${x}%`;
+                element.style.top = `${y}%`;
+
+                if (key === 'qr') {
+                    element.style.width = `${size}%`;
+                    element.style.height = 'auto';
+                    element.style.aspectRatio = '1';
+                } else {
+                    element.style.fontSize = `${size}px`;
+                }
+            });
             previewDialog.showModal();
         });
 
