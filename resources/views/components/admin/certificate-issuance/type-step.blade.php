@@ -14,8 +14,10 @@
                         data-template-id="{{ $template->id_template }}"
                         data-template-name="{{ $template->nama_template }}"
                         data-template-url="{{ route('certificate-templates.preview', $template) }}"
+                        data-template-positions="{{ json_encode($template->konfigurasi_posisi ?? []) }}"
                         data-type-name="{{ $jenis->nama_jenis }}"
                         data-type-code="{{ $jenis->kode }}"
+                        data-course-participants="{{ in_array($jenis->kode, ['KURSUS', '34'], true) || mb_strtolower(trim($jenis->nama_jenis)) === 'kursus' ? 'true' : 'false' }}"
                         @selected((string) old('id_jenis', $reissueCertificate?->id_jenis) === (string) $jenis->id_jenis)
                     >{{ $jenis->nama_jenis }}</option>
                 @endforeach

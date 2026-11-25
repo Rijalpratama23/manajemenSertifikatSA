@@ -2,7 +2,7 @@
     class="participant-modal"
     aria-labelledby="participant-edit-modal-title"
     data-edit-participant-modal
-    @if ($editParticipant && $errors->hasAny(['nama', 'email', 'asal_instansi'])) data-open-on-load @endif
+    @if ($editParticipant && $errors->hasAny(['nama', 'nis', 'tempat_lahir', 'tanggal_lahir', 'email', 'asal_instansi'])) data-open-on-load @endif
 >
     <div class="participant-modal-content">
         <header class="participant-modal-header">

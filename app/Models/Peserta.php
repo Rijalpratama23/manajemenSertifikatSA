@@ -13,7 +13,21 @@ class Peserta extends Model
     protected $table = 'peserta';
     protected $primaryKey = 'id_peserta';
 
-    protected $fillable = ['nama', 'email', 'asal_instansi'];
+    protected $fillable = [
+        'nis',
+        'nama',
+        'tempat_lahir',
+        'tanggal_lahir',
+        'email',
+        'asal_instansi',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'tanggal_lahir' => 'date',
+        ];
+    }
 
     public function sertifikat(): HasMany
     {

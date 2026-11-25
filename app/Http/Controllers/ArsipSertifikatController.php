@@ -24,26 +24,39 @@ class ArsipSertifikatController extends Controller
         $selectedType = $filters['jenis'] ?? '';
         $status = $filters['status'] ?? 'all';
         $dateFilter = $filters['tanggal'] ?? 'all';
-        $certificates = $this->filteredCertificatesQuery($filters)
-            ->orderByDesc('tanggal_terbit')
-            ->orderByDesc('id_sertifikat')
-            ->paginate(10)
-            ->withQueryString();
+        $certificateTypes = JenisSertifikat::query()
+            ->select(['id_jenis', 'nama_jenis'])
+            ->withCount([
+                'sertifikat as total_certificates',
+                'sertifikat as active_certificates' => fn (Builder $query) => $query
+                    ->where('status', Sertifikat::STATUS_AKTIF),
+                'sertifikat as cancelled_certificates' => fn (Builder $query) => $query
+                    ->where('status', Sertifikat::STATUS_DIBATALKAN),
+            ])
+            ->orderBy('nama_jenis')
+            ->get();
+        $selectedCertificateType = $certificateTypes->firstWhere('id_jenis', $selectedType);
+        $certificates = $selectedCertificateType
+            ? $this->filteredCertificatesQuery($filters)
+                ->orderByDesc('tanggal_terbit')
+                ->orderByDesc('id_sertifikat')
+                ->paginate(10)
+                ->withQueryString()
+            : null;
 
-        $certificateCounts = Sertifikat::query()
+        $certificateCountsQuery = Sertifikat::query()
+            ->when($selectedType !== '', fn (Builder $query) => $query->where('id_jenis', $selectedType))
             ->select('status', DB::raw('COUNT(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status');
+            ->groupBy('status');
+        $certificateCounts = $certificateCountsQuery->pluck('total', 'status');
         $totalCertificates = (int) $certificateCounts->sum();
         $activeCertificates = (int) $certificateCounts->get(Sertifikat::STATUS_AKTIF, 0);
         $cancelledCertificates = (int) $certificateCounts->get(Sertifikat::STATUS_DIBATALKAN, 0);
-        $certificateTypes = JenisSertifikat::query()
-            ->orderBy('nama_jenis')
-            ->get(['id_jenis', 'nama_jenis']);
 
         return view('certificate-archive.index', compact(
             'certificates',
             'certificateTypes',
+            'selectedCertificateType',
             'years',
             'search',
             'selectedType',

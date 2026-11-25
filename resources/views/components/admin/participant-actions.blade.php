@@ -8,6 +8,9 @@
         data-open-edit-participant
         data-edit-url="{{ route('participants.update', $participant) }}"
         data-participant-name="{{ $participant->nama }}"
+        data-participant-nis="{{ $participant->nis }}"
+        data-participant-birth-place="{{ $participant->tempat_lahir }}"
+        data-participant-birth-date="{{ $participant->tanggal_lahir?->toDateString() }}"
         data-participant-email="{{ $participant->email }}"
         data-participant-institution="{{ $participant->asal_instansi }}"
     >Ubah</button>

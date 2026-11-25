@@ -43,15 +43,20 @@ class CertificateIssuanceTest extends TestCase
             'id_jenis' => $type->id_jenis,
             'nama_template' => 'Template Magang',
             'berkas_desain' => 'certificate-templates/background.png',
+            'konfigurasi_posisi' => [
+                'nama' => ['x' => 37.5, 'y' => 62, 'size' => 28, 'visible' => true],
+            ],
             'aktif' => true,
         ]);
 
-        $this->actingAs($admin)
-            ->get(route('certificate-issues.create'))
+        $issuancePage = $this->actingAs($admin)->get(route('certificate-issues.create'));
+        $issuancePage
             ->assertOk()
             ->assertSee('Terbitkan Sertifikat')
             ->assertSee('Doni Prasetyo')
-            ->assertSee('Template Magang');
+            ->assertSee('Template Magang')
+            ->assertSee('data-template-positions=', false)
+            ->assertSee('37.5');
 
         $response = $this->actingAs($admin)->post(route('certificate-issues.store'), [
             'id_peserta' => $participant->id_peserta,
@@ -125,6 +130,112 @@ class CertificateIssuanceTest extends TestCase
     public function test_issue_page_requires_an_authenticated_admin(): void
     {
         $this->get(route('certificate-issues.create'))->assertRedirect(route('login'));
+    }
+
+    public function test_pdf_generation_completes_immediately_when_certificate_queue_uses_sync(): void
+    {
+        Storage::fake('local');
+        config(['queue.connections.certificate_pdfs.driver' => 'sync']);
+
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-sync-pdf-test',
+            'password_hash' => 'password',
+        ]);
+        $participant = Peserta::query()->create([
+            'nama' => 'Doni Prasetyo',
+            'email' => 'doni@example.test',
+        ]);
+        $type = JenisSertifikat::query()->create([
+            'kode' => 'MAGANG',
+            'nama_jenis' => 'Magang',
+            'aktif' => true,
+        ]);
+        $template = TemplateSertifikat::query()->create([
+            'id_jenis' => $type->id_jenis,
+            'nama_template' => 'Template Magang',
+            'berkas_desain' => 'certificate-templates/background.png',
+            'aktif' => true,
+        ]);
+        $this->mock(CertificatePdfService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('render')->once()->andReturn('%PDF-test');
+        });
+
+        $this->actingAs($admin)->post(route('certificate-issues.store'), [
+            'id_peserta' => $participant->id_peserta,
+            'id_jenis' => $type->id_jenis,
+            'id_template' => $template->id_template,
+            'tanggal_terbit' => '2026-10-28',
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'data_pendukung' => [
+                'instansi' => 'PT Sukarobot',
+                'posisi' => 'Software Developer',
+                'durasi' => '3 bulan',
+            ],
+            'deskripsi' => 'Telah menyelesaikan program magang.',
+        ])->assertRedirect(route('certificate-issues.create', ['batch' => 1]));
+
+        $certificate = Sertifikat::query()->firstOrFail();
+        $this->assertSame(Sertifikat::PDF_STATUS_COMPLETED, $certificate->pdf_status);
+        Storage::disk('local')->assertExists($certificate->berkas_pdf);
+    }
+
+    public function test_template_visibility_settings_hide_elements_from_the_certificate_output(): void
+    {
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-template-visibility-test',
+            'password_hash' => 'password',
+        ]);
+        $participant = Peserta::query()->create([
+            'nama' => 'Doni Prasetyo',
+            'email' => 'doni@example.test',
+        ]);
+        $type = JenisSertifikat::query()->create([
+            'kode' => 'MAGANG',
+            'nama_jenis' => 'Magang',
+            'aktif' => true,
+        ]);
+        $template = TemplateSertifikat::query()->create([
+            'id_jenis' => $type->id_jenis,
+            'nama_template' => 'Template Magang',
+            'berkas_desain' => 'certificate-templates/background.png',
+            'konfigurasi_posisi' => [
+                'judul' => ['visible' => false],
+                'nama' => ['x' => 50.5, 'y' => 44.5, 'size' => 25],
+                'qr' => ['visible' => false],
+            ],
+            'aktif' => true,
+        ]);
+        $certificate = Sertifikat::query()->create([
+            'nomor_sertifikat' => 'MAGANG/2026/0001',
+            'token_publik' => str_repeat('c', 64),
+            'kode_verifikasi' => 'ABCDEF123456',
+            'id_peserta' => $participant->id_peserta,
+            'id_jenis' => $type->id_jenis,
+            'id_admin' => $admin->id_admin,
+            'id_template' => $template->id_template,
+            'periode_mulai' => '2026-09-01',
+            'periode_selesai' => '2026-11-30',
+            'tanggal_terbit' => '2026-10-28',
+            'status' => Sertifikat::STATUS_AKTIF,
+        ])->load(['peserta', 'jenis', 'template']);
+
+        $html = view('certificates.pdf', [
+            'sertifikat' => $certificate,
+            'background' => 'data:image/png;base64,',
+            'qrCode' => 'data:image/png;base64,',
+        ])->render();
+
+        $this->assertStringNotContainsString('SERTIFIKAT</div>', $html);
+        $this->assertStringNotContainsString('alt="QR verifikasi"', $html);
+        $this->assertStringContainsString(
+            'top: 93.45mm; left: 149.99mm; width: 160mm; margin-left:-80mm; margin-top:-0.5em;',
+            $html,
+        );
+        $this->assertStringContainsString($participant->nama, $html);
+        $this->assertStringContainsString($certificate->nomor_sertifikat, $html);
     }
 
     public function test_public_verification_marks_cancelled_certificates_invalid_without_pdf_actions(): void
@@ -286,6 +397,7 @@ class CertificateIssuanceTest extends TestCase
             ->assertSee('Doni Prasetyo')
             ->assertSee('Peserta 10')
             ->assertSee('PDF sedang diproses')
+            ->assertSee('data-pdf-status-pending', false)
             ->assertDontSee(route('certificate-issues.download', $certificates[0]));
         $this->actingAs($admin)
             ->post(route('certificate-issues.download-batch'), [

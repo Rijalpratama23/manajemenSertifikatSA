@@ -32,10 +32,15 @@ return [
         ],
         '34' => [
             'title' => 'Data kursus',
+            'course_certificate' => true,
             'names' => ['kursus'],
             'fields' => [
                 ['key' => 'nama_kursus', 'label' => 'Nama kursus', 'placeholder' => 'Contoh: Desain 3D', 'required' => true],
-                ['key' => 'penyelenggara', 'label' => 'Penyelenggara kursus', 'placeholder' => 'Nama lembaga atau instruktur', 'required' => true],
+                ['key' => 'tahun_ajaran', 'label' => 'Tahun ajaran', 'placeholder' => 'Contoh: 2025-2026', 'required' => true],
+                ['key' => 'prestasi', 'label' => 'Prestasi', 'placeholder' => 'Contoh: Baik', 'required' => true],
+                ['key' => 'level', 'label' => 'Level kursus', 'placeholder' => 'Contoh: Basic 3', 'required' => true],
+                ['key' => 'kota_terbit', 'label' => 'Kota penerbitan', 'placeholder' => 'Contoh: Sukabumi', 'required' => true],
+                ['key' => 'penyelenggara', 'label' => 'Penyelenggara kursus (opsional)', 'placeholder' => 'Nama lembaga atau instruktur', 'required' => false],
                 ['key' => 'durasi', 'label' => 'Durasi kursus', 'placeholder' => 'Contoh: 20 jam', 'required' => true, 'column' => 'durasi'],
                 ['key' => 'nilai', 'label' => 'Nilai', 'placeholder' => 'Contoh: 92', 'required' => false, 'column' => 'nilai'],
             ],

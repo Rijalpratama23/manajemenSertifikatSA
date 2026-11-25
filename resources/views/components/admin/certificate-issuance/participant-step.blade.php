@@ -10,17 +10,28 @@
             <span>Pilih semua peserta yang tampil</span>
         </label>
         @foreach ($peserta as $item)
-            <label class="certificate-issuance-participant" data-issuance-participant-row data-issued-types="{{ $item->sertifikat->where('status', \App\Models\Sertifikat::STATUS_AKTIF)->pluck('id_jenis')->implode(',') }}">
+            <label
+                class="certificate-issuance-participant"
+                data-issuance-participant-row
+                data-course-participant="{{ $item->nis ? 'true' : 'false' }}"
+                data-issued-types="{{ $item->sertifikat->where('status', \App\Models\Sertifikat::STATUS_AKTIF)->pluck('id_jenis')->implode(',') }}"
+            >
                 <input
                     type="checkbox"
                     name="id_peserta[]"
                     value="{{ $item->id_peserta }}"
                     data-participant-name="{{ $item->nama }}"
+                    data-participant-birth-place="{{ $item->tempat_lahir ?? '' }}"
+                    data-participant-birth-date="{{ $item->tanggal_lahir ? $item->tanggal_lahir->locale('id')->translatedFormat('j F Y') : '' }}"
+                    data-participant-nis="{{ $item->nis ?? '' }}"
                     @checked(in_array((string) $item->id_peserta, array_map('strval', (array) old('id_peserta', $reissueCertificate ? [$reissueCertificate->id_peserta] : [])), true))
                 >
                 <span>
                     <strong>{{ $item->nama }}</strong>
-                    <small>{{ $item->email }} · {{ $item->asal_instansi ?: 'Asal instansi belum diisi' }}</small>
+                    <small>
+                        NIS {{ $item->nis ?: '—' }} ·
+                        {{ $item->tempat_lahir || $item->tanggal_lahir ? trim($item->tempat_lahir.' '.($item->tanggal_lahir?->locale('id')->translatedFormat('j F Y') ?? '')) : 'Data lahir belum diisi (opsional)' }}
+                    </small>
                 </span>
                 <small class="certificate-issuance-participant-count">{{ $item->sertifikat_count }} sertifikat</small>
             </label>

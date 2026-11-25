@@ -26,6 +26,40 @@
     />
 
     <x-forms.field
+        id="nis"
+        name="nis"
+        label="NIS"
+        placeholder="Masukkan NIS peserta"
+        :value="old('nis', $participant?->nis)"
+        :required="$participant?->nis !== null"
+        hint="{{ $participant?->nis !== null ? 'NIS tersinkron dengan daftar Kursus; perubahan akan diperbarui pada data Kursus.' : 'Opsional • Jika diisi, peserta akan dipasangkan otomatis dengan data Kursus yang memiliki NIS sama.' }}"
+        :id-prefix="$idPrefix"
+    />
+
+    <x-forms.field
+        id="tempat_lahir"
+        name="tempat_lahir"
+        label="Tempat lahir"
+        placeholder="Contoh: Sukabumi"
+        :value="old('tempat_lahir', $participant?->tempat_lahir)"
+        :maxlength="100"
+        :required="false"
+        hint="Opsional • Dicetak pada sertifikat Kursus jika tersedia"
+        :id-prefix="$idPrefix"
+    />
+
+    <x-forms.field
+        id="tanggal_lahir"
+        name="tanggal_lahir"
+        label="Tanggal lahir"
+        type="date"
+        :value="old('tanggal_lahir', $participant?->tanggal_lahir?->toDateString())"
+        :required="false"
+        hint="Opsional • Dicetak pada sertifikat Kursus jika tersedia"
+        :id-prefix="$idPrefix"
+    />
+
+    <x-forms.field
         id="email"
         name="email"
         label="Email"
@@ -33,7 +67,8 @@
         placeholder="nama@email.com"
         :value="old('email', $participant?->email)"
         :maxlength="150"
-        hint="Wajib diisi • Format email yang benar • Maks. 150 karakter"
+        :required="false"
+        hint="Opsional untuk peserta kursus • Format email yang benar • Maks. 150 karakter"
         :id-prefix="$idPrefix"
     />
 

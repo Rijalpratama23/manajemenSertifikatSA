@@ -19,7 +19,13 @@
 <section class="certificate-issuance-step certificate-issuance-support">
     <h2><span>4</span> Data pendukung</h2>
     @foreach ($issuanceFieldsByType as $typeCode => $schema)
-        <fieldset class="certificate-issuance-type-fields" data-issuance-type-fields="{{ $typeCode }}" disabled hidden>
+        <fieldset
+            class="certificate-issuance-type-fields"
+            data-issuance-type-fields="{{ $typeCode }}"
+            data-course-certificate="{{ ($schema['course_certificate'] ?? false) ? 'true' : 'false' }}"
+            disabled
+            hidden
+        >
             <legend class="visually-hidden">{{ $schema['title'] }}</legend>
             <h3>{{ $schema['title'] }}</h3>
             <div class="certificate-issuance-fields-grid">
@@ -41,6 +47,7 @@
                             placeholder="{{ $field['placeholder'] }}"
                             @required($field['required'])
                             data-support-input
+                            data-support-key="{{ $field['key'] }}"
                             data-support-label="{{ $field['label'] }}"
                             data-support-column="{{ $field['column'] ?? '' }}"
                         >
@@ -54,7 +61,7 @@
     @endforeach
     @error('data_pendukung') <small class="field-error">{{ $message }}</small> @enderror
     <label class="certificate-issuance-field certificate-issuance-description-field">
-        <span>Deskripsi sertifikat <b>*</b></span>
+        <span data-issuance-description-label>Deskripsi sertifikat <b>*</b></span>
         <textarea name="deskripsi" maxlength="500" required placeholder="Contoh: Telah menyelesaikan program dengan baik" data-issuance-description>{{ old('deskripsi', $reissueCertificate?->deskripsi) }}</textarea>
         @error('deskripsi') <small class="field-error">{{ $message }}</small> @enderror
     </label>

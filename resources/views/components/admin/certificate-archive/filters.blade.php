@@ -1,6 +1,9 @@
-@props(['search', 'certificateTypes', 'years', 'selectedType', 'status', 'dateFilter'])
+@props(['search', 'years', 'selectedType', 'status', 'dateFilter'])
 
 <form class="certificate-archive-filters" method="GET" action="{{ route('certificate-archive.index') }}" role="search">
+    @if ($selectedType !== '')
+        <input type="hidden" name="jenis" value="{{ $selectedType }}">
+    @endif
     <label class="certificate-archive-filter">
         <span class="visually-hidden">Tanggal terbit</span>
         <select name="tanggal" aria-label="Filter tanggal terbit" data-certificate-archive-filter>
@@ -21,17 +24,6 @@
             placeholder="Cari nomor atau nama peserta"
             maxlength="150"
         >
-    </label>
-    <label class="certificate-archive-filter">
-        <span class="visually-hidden">Jenis sertifikat</span>
-        <select name="jenis" aria-label="Filter jenis sertifikat" data-certificate-archive-filter>
-            <option value="">Jenis: Semua</option>
-            @foreach ($certificateTypes as $type)
-                <option value="{{ $type->id_jenis }}" @selected((string) $selectedType === (string) $type->id_jenis)>
-                    {{ $type->nama_jenis }}
-                </option>
-            @endforeach
-        </select>
     </label>
     <label class="certificate-archive-filter">
         <span class="visually-hidden">Status sertifikat</span>

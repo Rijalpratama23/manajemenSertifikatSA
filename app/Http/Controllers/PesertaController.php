@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Imports\PesertaImport;
 use App\Models\JenisSertifikat;
 use App\Models\Peserta;
+use App\Services\CourseParticipantSyncService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PesertaController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, CourseParticipantSyncService $courseParticipantSync): View
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:150'],
@@ -37,30 +38,34 @@ class PesertaController extends Controller
             ? JenisSertifikat::query()->whereKey((int) $selectedType)->value('kode')
             : null;
 
-        if ($selectedTypeCode === 'KURSUS') {
+        if (in_array($selectedTypeCode, ['KURSUS', '34'], true)) {
             $isCourseView = true;
-            $participants = DB::table('kursus')
-                ->select(['id', 'nis', 'nama'])
+            $courseParticipantSync->sync();
+            $participants = Peserta::query()
+                ->whereNotNull('nis')
+                ->withCount('sertifikat')
+                ->with(['sertifikat:id_sertifikat,id_peserta,id_jenis,status'])
                 ->when($search !== '', function ($query) use ($search) {
                     $query->where(function ($query) use ($search) {
                         $query->where('nama', 'like', "%{$search}%")
                             ->orWhere('nis', 'like', "%{$search}%");
                     });
                 })
-                ->orderBy('id', $sort === 'oldest' ? 'asc' : 'desc')
+                ->orderBy('nama', $sort === 'oldest' ? 'asc' : 'desc')
+                ->orderBy('id_peserta', $sort === 'oldest' ? 'asc' : 'desc')
                 ->paginate($perPage)
                 ->withQueryString();
 
             $participants->getCollection()->transform(function ($course) {
-                $course->sertifikat_count = 0;
-                $course->email = null;
-                $course->asal_instansi = null;
-                $course->dibuat_pada = null;
-                $course->id_peserta = $course->id;
-                $course->source = 'kursus';
+                $course->source = 'peserta-kursus';
                 return $course;
             });
-            $editParticipant = null;
+            $editParticipant = isset($validated['edit'])
+                ? Peserta::query()->findOrFail($validated['edit'])
+                : null;
+            if ($editParticipant) {
+                $editParticipant->setAttribute('source', 'peserta-kursus');
+            }
         } elseif ($selectedType === '') {
             $courseParticipants = Schema::hasTable('kursus')
                 ? DB::table('kursus')->select(['id', 'nis', 'nama'])->get()
@@ -170,10 +175,10 @@ class PesertaController extends Controller
 
         $certificateTypes = JenisSertifikat::query()
             ->where('aktif', true)
-            ->whereIn('kode', ['KURSUS', 'PKL', 'MAGANG', 'UJIKOM', 'LPK'])
+            ->whereIn('kode', ['KURSUS', '34', 'PKL', 'MAGANG', 'UJIKOM', 'LPK'])
             ->get(['id_jenis', 'kode', 'nama_jenis'])
             ->sortBy(fn (JenisSertifikat $certificateType) =>
-                ['KURSUS' => 1, 'PKL' => 2, 'MAGANG' => 3, 'UJIKOM' => 4, 'LPK' => 5][$certificateType->kode]
+                ['KURSUS' => 1, '34' => 1, 'PKL' => 2, 'MAGANG' => 3, 'UJIKOM' => 4, 'LPK' => 5][$certificateType->kode]
             )
             ->values();
         $selectedCertificateTypeName = $selectedType !== ''
@@ -225,7 +230,7 @@ class PesertaController extends Controller
 
     public function update(Request $request, Peserta $peserta): RedirectResponse
     {
-        $validator = Validator::make($request->all(), $this->participantRules());
+        $validator = Validator::make($request->all(), $this->participantRules($peserta));
 
         if ($validator->fails()) {
             return redirect()
@@ -234,7 +239,20 @@ class PesertaController extends Controller
                 ->withInput();
         }
 
-        $peserta->update($validator->validated());
+        $attributes = $validator->validated();
+        $previousNis = $peserta->nis;
+        DB::transaction(function () use ($peserta, $attributes, $previousNis) {
+            if ($previousNis !== null && Schema::hasTable('kursus')) {
+                DB::table('kursus')
+                    ->where('nis', $previousNis)
+                    ->update([
+                        'nis' => $attributes['nis'],
+                        'nama' => $attributes['nama'],
+                    ]);
+            }
+
+            $peserta->update($attributes);
+        });
 
         return redirect()->route('participants.index')->with('success', 'Data peserta berhasil diperbarui.');
     }
@@ -272,11 +290,24 @@ class PesertaController extends Controller
         );
     }
 
-    private function participantRules(): array
+    private function participantRules(?Peserta $participant = null): array
     {
+        $nisRule = Rule::unique('peserta', 'nis');
+        if ($participant) {
+            $nisRule->ignore($participant->getKey(), 'id_peserta');
+        }
+
         return [
             'nama' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'string', 'email', 'max:150'],
+            'nis' => [
+                $participant?->nis !== null ? 'required' : 'nullable',
+                'integer',
+                'min:1',
+                $nisRule,
+            ],
+            'tempat_lahir' => ['nullable', 'string', 'max:100'],
+            'tanggal_lahir' => ['nullable', 'date', 'before_or_equal:today'],
+            'email' => ['nullable', 'string', 'email', 'max:150'],
             'asal_instansi' => ['nullable', 'string', 'max:150'],
         ];
     }

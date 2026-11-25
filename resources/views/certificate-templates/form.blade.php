@@ -11,7 +11,7 @@
         </a>
         <header class="certificate-template-editor-heading">
             <h1>{{ $editTemplate ? 'Ubah Template Sertifikat' : 'Tambah Template Sertifikat' }}</h1>
-            <p>Isi data dasar dan ubah desain latar. Posisi elemen sertifikat sudah di atur sistem</p>
+            <p>Isi data dasar, sesuaikan posisi, dan pilih elemen yang ingin ditampilkan pada template.</p>
         </header>
 
         <form
@@ -58,6 +58,7 @@
                             @foreach ($jenisSertifikat as $jenis)
                                 <option
                                     value="{{ $jenis->id_jenis }}"
+                                    data-course-template="{{ in_array($jenis->kode, ['KURSUS', '34'], true) || mb_strtolower(trim($jenis->nama_jenis)) === 'kursus' ? 'true' : 'false' }}"
                                     @selected((string) old('id_jenis', $selectedType) === (string) $jenis->id_jenis)
                                 >{{ $jenis->nama_jenis }}</option>
                             @endforeach
@@ -113,8 +114,9 @@
                     <section class="certificate-template-position-editor" aria-labelledby="template-position-heading">
                         <header>
                             <div>
-                                <h2 id="template-position-heading"><span aria-hidden="true"></span>Posisi &amp; Ukuran Font</h2>
-                                <p>Ubah nilai X/Y atau geser elemen langsung pada pratinjau.</p>
+                                <h2 id="template-position-heading"><span aria-hidden="true"></span>Atur Elemen Sertifikat</h2>
+                                <p>Atur posisi dan ukuran, atau nonaktifkan elemen yang tidak diperlukan pada desain ini.</p>
+                                <p class="certificate-template-position-note">Pengaturan ini menyembunyikan elemen yang ditambahkan sistem. Teks yang sudah menyatu di gambar desain perlu dihapus dari file gambar sebelum diunggah.</p>
                             </div>
                             <button type="button" class="certificate-template-position-reset" data-reset-template-position>
                                 Reset Posisi
@@ -124,15 +126,29 @@
                         <div class="certificate-template-position-grid">
                             @foreach ($positionElements as $key => $element)
                                 @php($position = $positionConfig[$key])
+                                @php($positionVisible = old('posisi.'.$key.'.visible', $position['visible'] ?? true))
                                 <fieldset class="certificate-template-position-card is-{{ $element['color'] }}" data-position-card="{{ $key }}">
                                     <legend>{{ $element['label'] }}</legend>
+                                    <label class="certificate-template-position-visibility">
+                                        <input type="hidden" name="posisi[{{ $key }}][visible]" value="0">
+                                        <input
+                                            type="checkbox"
+                                            name="posisi[{{ $key }}][visible]"
+                                            value="1"
+                                            data-position-visible="{{ $key }}"
+                                            @if ($positionVisible) checked @endif
+                                        >
+                                        <span>Tampilkan elemen ini</span>
+                                    </label>
                                     <label>
                                         <span>X (%)</span>
-                                        <input type="number" name="posisi[{{ $key }}][x]" value="{{ old('posisi.'.$key.'.x', $position['x']) }}" min="0" max="100" step="0.5" data-position-x="{{ $key }}">
+                                        <input type="text" inputmode="decimal" name="posisi[{{ $key }}][x]" value="{{ old('posisi.'.$key.'.x', $position['x']) }}" data-position-x="{{ $key }}">
+                                        @error('posisi.'.$key.'.x') <small class="field-error">{{ $message }}</small> @enderror
                                     </label>
                                     <label>
                                         <span>Y (%)</span>
-                                        <input type="number" name="posisi[{{ $key }}][y]" value="{{ old('posisi.'.$key.'.y', $position['y']) }}" min="0" max="100" step="0.5" data-position-y="{{ $key }}">
+                                        <input type="text" inputmode="decimal" name="posisi[{{ $key }}][y]" value="{{ old('posisi.'.$key.'.y', $position['y']) }}" data-position-y="{{ $key }}">
+                                        @error('posisi.'.$key.'.y') <small class="field-error">{{ $message }}</small> @enderror
                                     </label>
                                     <label>
                                         <span>Ukuran</span>
@@ -149,6 +165,7 @@
                                     class="certificate-template-position-item is-{{ $key }}"
                                     data-position-item="{{ $key }}"
                                     data-position-key="{{ $key }}"
+                                    @if (! $positionVisible) hidden @endif
                                 >
                                     @switch($key)
                                         @case('judul') SERTIFIKAT @break
@@ -156,7 +173,7 @@
                                         @case('nama') Nama Peserta @break
                                         @case('nomor') Nomor: SA/2026/0001 @break
                                         @case('deskripsi') Telah menyelesaikan program pelatihan dengan baik @break
-                                        @case('tanggal') 23 November 2026 @break
+                                        @case('tanggal') Periode 1 Nov 2026 – 23 Nov 2026 @break
                                         @case('qr') QR @break
                                     @endswitch
                                 </span>
@@ -212,12 +229,11 @@
             <button class="certificate-template-preview-close" type="button" aria-label="Tutup pratinjau" data-close-template-form-preview>&times;</button>
             <h2 id="template-form-preview-title">Pratinjau Sertifikat</h2>
             <div class="certificate-template-form-preview-canvas" data-template-preview-canvas>
-                <span class="preview-sample-organization">SUKAROBOT ACADEMY</span>
                 <span class="preview-sample-title">SERTIFIKAT</span>
                 <span class="preview-sample-given">diberikan kepada</span>
                 <span class="preview-sample-recipient">Nama Peserta</span>
                 <span class="preview-sample-description">Telah menyelesaikan program pelatihan dengan baik</span>
-                <span class="preview-sample-signature">Direktur Sukarobot Academy</span>
+                <span class="preview-sample-date">Periode 1 Nov 2026 – 23 Nov 2026</span>
                 <span class="preview-sample-qr">QR</span>
                 <span class="preview-sample-number">Nomor: SA/2026/0001</span>
             </div>

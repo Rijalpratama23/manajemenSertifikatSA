@@ -31,7 +31,7 @@ class CertificateArchiveTest extends TestCase
             ->assertOk()
             ->assertSee($certificate->nomor_sertifikat)
             ->assertSee('Arsip Sertifikat')
-            ->assertSee('Filter dan unduh arsip')
+            ->assertSee('Filter arsip Magang')
             ->assertSee('Unduh semua hasil (ZIP)')
             ->assertViewHas('totalCertificates', 1)
             ->assertViewHas('activeCertificates', 1);
@@ -40,6 +40,28 @@ class CertificateArchiveTest extends TestCase
             ->assertOk()
             ->assertSee($certificate->nomor_sertifikat)
             ->assertSee($certificate->peserta->email);
+    }
+
+    public function test_archive_groups_certificates_into_type_folders_and_scopes_the_selected_folder(): void
+    {
+        $admin = $this->createAdmin();
+        $magangCertificate = $this->createCertificate($admin);
+        $kursusCertificate = $this->createCertificate($admin, 'KURSUS', 'Kursus', 'KURSUS/2026/0001');
+
+        $this->actingAs($admin)
+            ->get(route('certificate-archive.index'))
+            ->assertOk()
+            ->assertSee('Folder jenis sertifikat')
+            ->assertSee('Magang')
+            ->assertSee('Kursus')
+            ->assertSee('2 jenis sertifikat tersedia');
+
+        $this->get(route('certificate-archive.index', ['jenis' => $magangCertificate->id_jenis]))
+            ->assertOk()
+            ->assertSee('Filter arsip Magang')
+            ->assertSee($magangCertificate->nomor_sertifikat)
+            ->assertDontSee($kursusCertificate->nomor_sertifikat)
+            ->assertViewHas('totalCertificates', 1);
     }
 
     public function test_admin_can_cancel_certificate_and_open_its_reissue_form(): void
@@ -110,16 +132,21 @@ class CertificateArchiveTest extends TestCase
         ]);
     }
 
-    private function createCertificate(?Admin $admin = null): Sertifikat
+    private function createCertificate(
+        ?Admin $admin = null,
+        string $typeCode = 'MAGANG',
+        string $typeName = 'Magang',
+        string $certificateNumber = 'MAGANG/2026/0001',
+    ): Sertifikat
     {
         $participant = Peserta::query()->create([
-            'nama' => 'Doni Prasetyo',
-            'email' => 'doni@example.test',
+            'nama' => "Doni Prasetyo {$typeCode}",
+            'email' => strtolower($typeCode).'@example.test',
             'asal_instansi' => 'SMKN 1 Bandung',
         ]);
         $type = JenisSertifikat::query()->create([
-            'kode' => 'MAGANG',
-            'nama_jenis' => 'Magang',
+            'kode' => $typeCode,
+            'nama_jenis' => $typeName,
             'aktif' => true,
         ]);
         $template = TemplateSertifikat::query()->create([
@@ -131,9 +158,9 @@ class CertificateArchiveTest extends TestCase
         $admin ??= $this->createAdmin();
 
         return Sertifikat::query()->create([
-            'nomor_sertifikat' => 'MAGANG/2026/0001',
-            'token_publik' => str_repeat('a', 64),
-            'kode_verifikasi' => 'ABCDEF123456',
+            'nomor_sertifikat' => $certificateNumber,
+            'token_publik' => hash('sha256', $typeCode),
+            'kode_verifikasi' => strtoupper(substr(hash('sha256', $typeCode), 0, 12)),
             'id_peserta' => $participant->id_peserta,
             'id_jenis' => $type->id_jenis,
             'id_admin' => $admin->id_admin,

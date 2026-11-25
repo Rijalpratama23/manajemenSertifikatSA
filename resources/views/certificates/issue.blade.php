@@ -1,5 +1,5 @@
 <x-admin.layout title="Terbitkan Sertifikat">
-    <div class="certificate-issuance-page">
+    <div class="certificate-issuance-page" @if ($issuedPdfPending) data-pdf-status-pending @endif>
         @if ($issuedCertificate)
             <x-admin.flash-message />
             <header class="dashboard-header certificate-issuance-heading">
@@ -61,7 +61,7 @@
                             </form>
                         @else
                             <p class="certificate-issued-note" role="status">
-                                Unduh ZIP tersedia setelah semua PDF selesai diproses.
+                                Status diperbarui otomatis. Unduh ZIP tersedia setelah semua PDF selesai diproses.
                             </p>
                         @endif
                     <a class="certificate-issued-another" href="{{ route('certificate-issues.create') }}">Terbitkan sertifikat lain</a>
@@ -101,7 +101,7 @@
                             @if ($issuedCertificate->pdf_status === \App\Models\Sertifikat::PDF_STATUS_FAILED)
                                 PDF gagal dibuat setelah beberapa percobaan. Periksa log aplikasi atau hubungi administrator.
                             @else
-                                PDF sedang diproses di latar belakang. Periksa kembali arsip beberapa saat lagi.
+                                PDF sedang diproses. Halaman ini akan diperbarui otomatis.
                             @endif
                         </p>
                     @endif
