@@ -4,6 +4,231 @@ if (document.querySelector('[data-pdf-status-pending]')) {
     window.setTimeout(() => window.location.reload(), 5000);
 }
 
+const setupAjaxSearch = (selectors, failureMessage) => {
+    const form = document.querySelector(selectors.form);
+    const input = form?.querySelector(selectors.input);
+    const suggestionsContainer = form?.querySelector(selectors.suggestions);
+    const searchError = form?.querySelector(selectors.error);
+    const table = document.querySelector(selectors.table);
+    const footer = document.querySelector(selectors.footer);
+
+    if (
+        !(form instanceof HTMLFormElement)
+        || !(input instanceof HTMLInputElement)
+        || !(suggestionsContainer instanceof HTMLElement)
+        || !(searchError instanceof HTMLElement)
+        || !(table instanceof HTMLElement)
+        || !(footer instanceof HTMLElement)
+    ) {
+        return;
+    }
+
+    let searchTimer;
+    let activeSuggestionIndex = -1;
+    let requestSequence = 0;
+
+    const visibleSuggestions = () => Array.from(
+        suggestionsContainer.querySelectorAll(selectors.suggestion),
+    ).filter((suggestion) => suggestion instanceof HTMLButtonElement && !suggestion.hidden);
+
+    const hideSuggestions = () => {
+        suggestionsContainer.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        activeSuggestionIndex = -1;
+        visibleSuggestions().forEach((suggestion) => suggestion.setAttribute('aria-selected', 'false'));
+    };
+
+    const searchUrl = (pageUrl = null) => {
+        const url = pageUrl
+            ? new URL(pageUrl, window.location.href)
+            : new URL(form.action, window.location.href);
+
+        if (!pageUrl) {
+            url.search = new URLSearchParams(new FormData(form)).toString();
+        }
+        url.searchParams.set('partial', '1');
+        return url;
+    };
+
+    const refreshResults = async (pageUrl = null, updateAddress = true) => {
+        const sequence = ++requestSequence;
+        const url = searchUrl(pageUrl);
+        table.setAttribute('aria-busy', 'true');
+        searchError.hidden = true;
+
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Search request failed with status ${response.status}`);
+            }
+
+            const results = await response.json();
+            if (sequence !== requestSequence) {
+                return;
+            }
+
+            table.innerHTML = results.table;
+            footer.innerHTML = results.footer;
+            const summary = document.querySelector(selectors.summary);
+            if (summary instanceof HTMLElement) {
+                summary.textContent = results.summary;
+            }
+
+            if (updateAddress) {
+                url.searchParams.delete('partial');
+                window.history.replaceState(null, '', url);
+            }
+        } catch (error) {
+            if (sequence !== requestSequence) {
+                return;
+            }
+
+            console.error(failureMessage, error);
+            searchError.textContent = failureMessage;
+            searchError.hidden = false;
+            suggestionsContainer.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+        } finally {
+            if (sequence === requestSequence) {
+                table.removeAttribute('aria-busy');
+            }
+        }
+    };
+
+    const updateSuggestions = () => {
+        const query = input.value.trim().toLocaleLowerCase('id');
+        const suggestions = Array.from(suggestionsContainer.querySelectorAll(selectors.suggestion));
+        let visibleCount = 0;
+        searchError.hidden = true;
+
+        suggestions.forEach((suggestion) => {
+            if (!(suggestion instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            const matches = query !== ''
+                && suggestion.textContent.trim().toLocaleLowerCase('id').includes(query);
+            suggestion.hidden = !matches;
+            suggestion.setAttribute('aria-selected', 'false');
+            visibleCount += matches ? 1 : 0;
+        });
+
+        activeSuggestionIndex = -1;
+        suggestionsContainer.hidden = visibleCount === 0;
+        input.setAttribute('aria-expanded', String(visibleCount > 0));
+    };
+
+    const selectSuggestion = (suggestion) => {
+        if (!(suggestion instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        window.clearTimeout(searchTimer);
+        input.value = suggestion.textContent.trim();
+        hideSuggestions();
+        refreshResults();
+    };
+
+    input.addEventListener('input', () => {
+        updateSuggestions();
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => refreshResults(), 250);
+    });
+
+    input.addEventListener('focus', updateSuggestions);
+    input.addEventListener('keydown', (event) => {
+        const suggestions = visibleSuggestions();
+        if (event.key === 'Escape') {
+            hideSuggestions();
+            return;
+        }
+        if (suggestions.length === 0) {
+            return;
+        }
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeSuggestionIndex = event.key === 'ArrowDown'
+                ? (activeSuggestionIndex + 1) % suggestions.length
+                : (activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+            suggestions.forEach((suggestion, index) => {
+                suggestion.setAttribute('aria-selected', String(index === activeSuggestionIndex));
+            });
+        } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+            event.preventDefault();
+            selectSuggestion(suggestions[activeSuggestionIndex]);
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        window.setTimeout(hideSuggestions, 140);
+    });
+
+    suggestionsContainer.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target instanceof Element) {
+            selectSuggestion(target.closest(selectors.suggestion));
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        window.clearTimeout(searchTimer);
+        hideSuggestions();
+        refreshResults();
+    });
+
+    form.querySelectorAll(selectors.suggestion).forEach((suggestion) => {
+        suggestion.addEventListener('mousedown', (event) => event.preventDefault());
+    });
+
+    footer.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const link = target.closest('a[href]');
+        if (link instanceof HTMLAnchorElement) {
+            event.preventDefault();
+            refreshResults(link.href);
+        }
+    });
+
+    window.addEventListener('popstate', () => {
+        const url = new URL(window.location.href);
+        input.value = url.searchParams.get('search') ?? '';
+        refreshResults(url, false);
+    });
+};
+
+setupAjaxSearch({
+    form: '[data-certificate-type-search-form]',
+    input: '[data-certificate-type-search]',
+    suggestions: '[data-certificate-type-search-suggestions]',
+    suggestion: '[data-certificate-type-search-suggestion]',
+    error: '[data-certificate-type-search-error]',
+    table: '[data-certificate-type-table]',
+    footer: '[data-certificate-type-footer]',
+    summary: '.participants-panel .panel-heading p',
+}, 'Pencarian jenis sertifikat gagal diperbarui. Periksa koneksi lalu coba lagi.');
+
+setupAjaxSearch({
+    form: '[data-participant-search-form]',
+    input: '[data-participant-search]',
+    suggestions: '[data-participant-search-suggestions]',
+    suggestion: '[data-participant-search-suggestion]',
+    error: '[data-participant-search-error]',
+    table: '[data-participant-table]',
+    footer: '[data-participant-footer]',
+    summary: '.participants-panel .panel-heading p',
+}, 'Pencarian peserta gagal diperbarui. Periksa koneksi lalu coba lagi.');
+
 document.querySelectorAll('[data-participant-nav-dropdown]').forEach((dropdown) => {
     if (!(dropdown instanceof HTMLElement)) {
         return;

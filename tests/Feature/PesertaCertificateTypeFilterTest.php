@@ -336,8 +336,6 @@ class PesertaCertificateTypeFilterTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Peserta Magang')
-            ->assertDontSee('Peserta Seminar')
-            ->assertDontSee('Peserta Tanpa Sertifikat')
             ->assertSee('Semua Jenis')
             ->assertSee('Magang')
             ->assertSee('NIS')

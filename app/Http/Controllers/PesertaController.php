@@ -7,6 +7,7 @@ use App\Models\JenisSertifikat;
 use App\Models\Peserta;
 use App\Services\CourseParticipantSyncService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PesertaController extends Controller
 {
-    public function index(Request $request, CourseParticipantSyncService $courseParticipantSync): View
+    public function index(Request $request, CourseParticipantSyncService $courseParticipantSync): View|JsonResponse
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:150'],
@@ -185,9 +186,40 @@ class PesertaController extends Controller
             ? ($certificateTypes->firstWhere('id_jenis', (int) $selectedType)?->nama_jenis)
             : null;
 
+        if ($request->boolean('partial')) {
+            return response()->json([
+                'table' => view('components.admin.participant-table', [
+                    'participants' => $participants,
+                    'isCourseView' => $isCourseView,
+                ])->render(),
+                'footer' => view('participants.partials.pagination', [
+                    'participants' => $participants,
+                ])->render(),
+                'summary' => sprintf(
+                    'Menampilkan %d dari %d peserta',
+                    $participants->count(),
+                    $participants->total(),
+                ),
+            ]);
+        }
+
+        $participantSearchSuggestions = Peserta::query()
+            ->orderBy('nama')
+            ->pluck('nama');
+        if (Schema::hasTable('kursus')) {
+            $participantSearchSuggestions = $participantSearchSuggestions->merge(
+                DB::table('kursus')->orderBy('nama')->pluck('nama'),
+            );
+        }
+        $participantSearchSuggestions = $participantSearchSuggestions
+            ->filter(fn ($name) => is_string($name) && trim($name) !== '')
+            ->unique(fn ($name) => mb_strtolower(trim($name)))
+            ->values();
+
         return view('participants.index', compact(
             'participants',
             'certificateTypes',
+            'participantSearchSuggestions',
             'selectedCertificateTypeName',
             'search',
             'selectedType',
