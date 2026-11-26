@@ -31,6 +31,7 @@ class CertificateIssuanceTest extends TestCase
         ]);
         $participant = Peserta::query()->create([
             'nama' => 'Doni Prasetyo',
+            'nis' => '202500123',
             'email' => 'doni@example.test',
             'asal_instansi' => 'SMKN 1 Bandung',
         ]);
@@ -54,6 +55,10 @@ class CertificateIssuanceTest extends TestCase
             ->assertOk()
             ->assertSee('Terbitkan Sertifikat')
             ->assertSee('Doni Prasetyo')
+            ->assertSee('Cari nama atau NIS peserta')
+            ->assertSee('data-issuance-participant-search', false)
+            ->assertSee('data-issuance-participant-suggestions', false)
+            ->assertSee('data-participant-nis="202500123"', false)
             ->assertSee('Template Magang')
             ->assertSee('data-template-positions=', false)
             ->assertSee('37.5');

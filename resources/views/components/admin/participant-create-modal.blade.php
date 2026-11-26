@@ -1,3 +1,9 @@
+@props([
+    'isCourseView' => false,
+    'selectedType' => '',
+    'selectedCertificateTypeName' => null,
+])
+
 <dialog
     class="participant-modal"
     aria-labelledby="participant-modal-title"
@@ -6,8 +12,18 @@
 >
     <div class="participant-modal-content">
         <header class="participant-modal-header">
-            <h2 id="participant-modal-title">Tambah Peserta</h2>
-            <p>Isi data peserta baru untuk ditambahkan ke daftar.</p>
+            <h2 id="participant-modal-title">
+                {{ $selectedCertificateTypeName ? 'Tambah Peserta '.$selectedCertificateTypeName : 'Tambah Peserta' }}
+            </h2>
+            <p>
+                @if ($isCourseView)
+                    Isi identitas peserta Kursus. NIS wajib diisi; data lahir dapat dilengkapi jika tersedia.
+                @elseif ($selectedCertificateTypeName)
+                    Isi data peserta {{ $selectedCertificateTypeName }}.
+                @else
+                    Isi data umum peserta baru untuk ditambahkan ke daftar.
+                @endif
+            </p>
         </header>
 
         <x-admin.participant-form
@@ -15,6 +31,8 @@
             :cancel-url="route('participants.index')"
             submit-label="Simpan"
             :modal="true"
+            :course-context="$isCourseView"
+            :selected-type="$selectedType"
         />
     </div>
 </dialog>

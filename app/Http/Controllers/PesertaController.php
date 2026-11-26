@@ -237,10 +237,22 @@ class PesertaController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate($this->participantRules());
+        $typeId = $request->input('jenis');
+        $typeId = is_scalar($typeId) && is_numeric($typeId) ? (int) $typeId : null;
+        $type = $typeId !== null
+            ? JenisSertifikat::query()->find($typeId, ['id_jenis', 'kode'])
+            : null;
+        $isCourseContext = $type && in_array($type->kode, ['KURSUS', '34'], true);
+        $validated = $request->validate([
+            ...$this->participantRules(null, $isCourseContext),
+            'jenis' => ['nullable', 'integer', Rule::exists('jenis_sertifikat', 'id_jenis')],
+        ]);
+        $selectedType = $validated['jenis'] ?? null;
+        unset($validated['jenis']);
         Peserta::query()->create($validated);
 
-        return redirect()->route('participants.index')->with('success', 'Data peserta berhasil ditambahkan.');
+        return redirect()->route('participants.index', $selectedType ? ['jenis' => $selectedType] : [])
+            ->with('success', 'Data peserta berhasil ditambahkan.');
     }
 
     public function show(Peserta $peserta): View
@@ -322,7 +334,7 @@ class PesertaController extends Controller
         );
     }
 
-    private function participantRules(?Peserta $participant = null): array
+    private function participantRules(?Peserta $participant = null, bool $courseContext = false): array
     {
         $nisRule = Rule::unique('peserta', 'nis');
         if ($participant) {
@@ -332,7 +344,7 @@ class PesertaController extends Controller
         return [
             'nama' => ['required', 'string', 'max:150'],
             'nis' => [
-                $participant?->nis !== null ? 'required' : 'nullable',
+                $courseContext || $participant?->nis !== null ? 'required' : 'nullable',
                 'integer',
                 'min:1',
                 $nisRule,

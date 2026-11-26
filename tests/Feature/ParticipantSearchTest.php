@@ -45,4 +45,53 @@ class ParticipantSearchTest extends TestCase
         $this->assertStringContainsString('Alina Putri', $clearedResponse->json('table'));
         $this->assertStringContainsString('Budi Santoso', $clearedResponse->json('table'));
     }
+
+    public function test_participant_table_filters_can_update_without_an_apply_button(): void
+    {
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-participant-filter-test',
+            'password_hash' => 'password',
+        ]);
+        foreach (range(1, 12) as $number) {
+            $participant = Peserta::query()->create(['nama' => sprintf('Peserta %02d', $number)]);
+            $participant->setCreatedAt(now()->subDays(12 - $number));
+            $participant->saveQuietly();
+        }
+
+        $this->actingAs($admin)
+            ->get(route('participants.index'))
+            ->assertOk()
+            ->assertSee('data-participant-filter-form', false)
+            ->assertSee('Menampilkan 1–10 dari 12 peserta')
+            ->assertSee('Navigasi halaman data peserta')
+            ->assertSee('Halaman berikutnya')
+            ->assertDontSee('Showing')
+            ->assertDontSee('results')
+            ->assertDontSee('Terapkan');
+
+        $oldestResponse = $this->getJson(route('participants.index', [
+            'per_page' => 25,
+            'sort' => 'oldest',
+            'partial' => 1,
+        ]));
+        $oldestResponse
+            ->assertOk()
+            ->assertJsonPath('summary', 'Menampilkan 12 dari 12 peserta');
+        $this->assertLessThan(
+            strpos($oldestResponse->json('table'), 'Peserta 12'),
+            strpos($oldestResponse->json('table'), 'Peserta 01'),
+        );
+
+        $newestResponse = $this->getJson(route('participants.index', [
+            'per_page' => 10,
+            'sort' => 'newest',
+            'partial' => 1,
+        ]));
+        $newestResponse
+            ->assertOk()
+            ->assertJsonPath('summary', 'Menampilkan 10 dari 12 peserta');
+        $this->assertStringContainsString('Peserta 12', $newestResponse->json('table'));
+        $this->assertStringNotContainsString('Peserta 01', $newestResponse->json('table'));
+    }
 }

@@ -49,7 +49,7 @@
             class="participants-panel"
         >
             <div class="participant-table-toolbar">
-                <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options">
+                <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options" data-participant-filter-form>
                     <input type="hidden" name="search" value="{{ $search }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
                     @if ($selectedType !== '')
@@ -66,7 +66,6 @@
                         <option value="newest" @selected($sort === 'newest')>Terbaru</option>
                         <option value="oldest" @selected($sort === 'oldest')>Terlama</option>
                     </select>
-                    <button class="participant-secondary-button" type="submit">Terapkan</button>
                 </form>
             </div>
 
@@ -78,7 +77,11 @@
                 @include('participants.partials.pagination', ['participants' => $participants])
             </div>
         </x-admin.panel>
-        <x-admin.participant-create-modal />
+        <x-admin.participant-create-modal
+            :is-course-view="$isCourseView"
+            :selected-type="$selectedType"
+            :selected-certificate-type-name="$selectedCertificateTypeName"
+        />
         <x-admin.participant-edit-modal :edit-participant="$editParticipant" />
     </div>
 </x-admin.layout>

@@ -220,9 +220,28 @@ class PesertaCertificateTypeFilterTest extends TestCase
             'username' => 'admin-course-participant-identity-test',
             'password_hash' => 'password',
         ]);
+        $courseType = $this->createCertificateType('KURSUS', 'Kursus');
+
+        $this->actingAs($admin)
+            ->get(route('participants.index', ['jenis' => $courseType->id_jenis]))
+            ->assertOk()
+            ->assertSee('Tambah Peserta Kursus')
+            ->assertSee('data-participant-form-context="course"', false)
+            ->assertSee('Wajib diisi • Digunakan untuk identitas dan sinkronisasi peserta Kursus.');
+
+        $this->from(route('participants.index', ['jenis' => $courseType->id_jenis]))
+            ->post(route('participants.store'), [
+                'jenis' => $courseType->id_jenis,
+                'nama' => 'Siswa Baru',
+                'tempat_lahir' => 'Sukabumi',
+                'tanggal_lahir' => '2009-03-21',
+            ])
+            ->assertRedirect(route('participants.index', ['jenis' => $courseType->id_jenis]))
+            ->assertSessionHasErrors('nis');
 
         $this->actingAs($admin)
             ->post(route('participants.store'), [
+                'jenis' => $courseType->id_jenis,
                 'nama' => 'Siswa Baru',
                 'nis' => '202500001',
                 'tempat_lahir' => 'Sukabumi',
@@ -230,7 +249,7 @@ class PesertaCertificateTypeFilterTest extends TestCase
                 'email' => '',
                 'asal_instansi' => '',
             ])
-            ->assertRedirect(route('participants.index'));
+            ->assertRedirect(route('participants.index', ['jenis' => $courseType->id_jenis]));
 
         $participant = Peserta::query()->where('nis', 202500001)->firstOrFail();
         $this->assertSame('Siswa Baru', $participant->nama);

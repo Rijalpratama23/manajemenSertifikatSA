@@ -6,5 +6,5 @@
             Menampilkan 0 peserta
         @endif
     </p>
-    {{ $participants->onEachSide(1)->links() }}
+    {{ $participants->onEachSide(1)->links('participants.partials.pagination-links') }}
 </footer>

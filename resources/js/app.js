@@ -11,6 +11,9 @@ const setupAjaxSearch = (selectors, failureMessage) => {
     const searchError = form?.querySelector(selectors.error);
     const table = document.querySelector(selectors.table);
     const footer = document.querySelector(selectors.footer);
+    const optionsForm = selectors.optionsForm
+        ? document.querySelector(selectors.optionsForm)
+        : null;
 
     if (
         !(form instanceof HTMLFormElement)
@@ -44,7 +47,15 @@ const setupAjaxSearch = (selectors, failureMessage) => {
             : new URL(form.action, window.location.href);
 
         if (!pageUrl) {
-            url.search = new URLSearchParams(new FormData(form)).toString();
+            const parameters = new URLSearchParams(new FormData(form));
+            if (optionsForm instanceof HTMLFormElement) {
+                optionsForm.querySelectorAll('select[name]').forEach((select) => {
+                    if (select instanceof HTMLSelectElement) {
+                        parameters.set(select.name, select.value);
+                    }
+                });
+            }
+            url.search = parameters.toString();
         }
         url.searchParams.set('partial', '1');
         return url;
@@ -187,6 +198,25 @@ const setupAjaxSearch = (selectors, failureMessage) => {
         suggestion.addEventListener('mousedown', (event) => event.preventDefault());
     });
 
+    if (optionsForm instanceof HTMLFormElement) {
+        optionsForm.addEventListener('change', (event) => {
+            if (!(event.target instanceof HTMLSelectElement)) {
+                return;
+            }
+
+            const matchingField = form.querySelector(`[name="${CSS.escape(event.target.name)}"]`);
+            if (matchingField instanceof HTMLInputElement) {
+                matchingField.value = event.target.value;
+            }
+
+            window.clearTimeout(searchTimer);
+            refreshResults();
+        });
+        optionsForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+        });
+    }
+
     footer.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof Element)) {
@@ -203,6 +233,17 @@ const setupAjaxSearch = (selectors, failureMessage) => {
     window.addEventListener('popstate', () => {
         const url = new URL(window.location.href);
         input.value = url.searchParams.get('search') ?? '';
+        if (optionsForm instanceof HTMLFormElement) {
+            optionsForm.querySelectorAll('select[name]').forEach((select) => {
+                if (select instanceof HTMLSelectElement && url.searchParams.has(select.name)) {
+                    select.value = url.searchParams.get(select.name);
+                    const matchingField = form.querySelector(`[name="${CSS.escape(select.name)}"]`);
+                    if (matchingField instanceof HTMLInputElement) {
+                        matchingField.value = select.value;
+                    }
+                }
+            });
+        }
         refreshResults(url, false);
     });
 };
@@ -226,6 +267,7 @@ setupAjaxSearch({
     error: '[data-participant-search-error]',
     table: '[data-participant-table]',
     footer: '[data-participant-footer]',
+    optionsForm: '[data-participant-filter-form]',
     summary: '.participants-panel .panel-heading p',
 }, 'Pencarian peserta gagal diperbarui. Periksa koneksi lalu coba lagi.');
 
@@ -1469,7 +1511,12 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
 
     const participantsList = certificateIssuanceForm.querySelector('[data-issuance-participants]');
     const participantHint = certificateIssuanceForm.querySelector('[data-issuance-participant-hint]');
+    const participantSearchContainer = certificateIssuanceForm.querySelector('[data-issuance-participant-search-container]');
+    const participantSearch = certificateIssuanceForm.querySelector('[data-issuance-participant-search]');
+    const clearParticipantSearch = certificateIssuanceForm.querySelector('[data-clear-issuance-participant-search]');
+    const participantSuggestions = certificateIssuanceForm.querySelector('[data-issuance-participant-suggestions]');
     const participantsEmpty = certificateIssuanceForm.querySelector('[data-issuance-participants-empty]');
+    const participantSearchEmpty = certificateIssuanceForm.querySelector('[data-issuance-search-empty]');
     const selectAllParticipants = certificateIssuanceForm.querySelector('[data-issuance-select-all]');
     const selectAllParticipantsRow = certificateIssuanceForm.querySelector('[data-issuance-select-all-row]');
     const typeSelect = certificateIssuanceForm.querySelector('[data-issuance-type]');
@@ -1520,6 +1567,106 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         }).format(date);
     };
 
+    let activeParticipantSuggestionIndex = -1;
+    let selectedParticipantId = null;
+    const participantSuggestionButtons = () => (
+        participantSuggestions instanceof HTMLElement
+            ? Array.from(participantSuggestions.querySelectorAll('[data-issuance-participant-suggestion]'))
+                .filter((button) => button instanceof HTMLButtonElement)
+            : []
+    );
+    const hideParticipantSuggestions = () => {
+        if (participantSuggestions instanceof HTMLElement) {
+            participantSuggestions.hidden = true;
+        }
+        if (participantSearch instanceof HTMLInputElement) {
+            participantSearch.setAttribute('aria-expanded', 'false');
+        }
+        activeParticipantSuggestionIndex = -1;
+        participantSuggestionButtons().forEach((button) => {
+            button.setAttribute('aria-selected', 'false');
+        });
+    };
+    const selectParticipantSuggestion = (button) => {
+        if (
+            !(button instanceof HTMLButtonElement)
+            || !(participantSearch instanceof HTMLInputElement)
+        ) {
+            return;
+        }
+
+        selectedParticipantId = button.dataset.participantId ?? null;
+        participantSearch.value = button.dataset.participantName ?? '';
+        if (clearParticipantSearch instanceof HTMLButtonElement) {
+            clearParticipantSearch.hidden = participantSearch.value === '';
+        }
+        updateParticipants();
+        hideParticipantSuggestions();
+        participantSearch.focus();
+    };
+    const renderParticipantSuggestions = (eligibleRows, query) => {
+        if (
+            !(participantSuggestions instanceof HTMLElement)
+            || !(participantSearch instanceof HTMLInputElement)
+        ) {
+            return;
+        }
+
+        participantSuggestions.replaceChildren();
+        activeParticipantSuggestionIndex = -1;
+        if (query === '') {
+            hideParticipantSuggestions();
+            return;
+        }
+
+        eligibleRows
+            .filter((row) => {
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (!(checkbox instanceof HTMLInputElement)) {
+                    return false;
+                }
+
+                const searchableText = [
+                    checkbox.dataset.participantName,
+                    checkbox.dataset.participantNis,
+                ].filter(Boolean).join(' ').toLocaleLowerCase('id');
+                return searchableText.includes(query);
+            })
+            .slice(0, 7)
+            .forEach((row) => {
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (!(checkbox instanceof HTMLInputElement)) {
+                    return;
+                }
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.setAttribute('role', 'option');
+                button.setAttribute('aria-selected', 'false');
+                button.dataset.issuanceParticipantSuggestion = '';
+                button.dataset.participantId = checkbox.value;
+                button.dataset.participantName = checkbox.dataset.participantName ?? '';
+
+                const content = document.createElement('span');
+                const name = document.createElement('strong');
+                name.textContent = checkbox.dataset.participantName ?? '';
+                content.append(name);
+
+                const nis = checkbox.dataset.participantNis ?? '';
+                if (nis !== '') {
+                    const identifier = document.createElement('small');
+                    identifier.textContent = `NIS ${nis}`;
+                    content.append(identifier);
+                }
+                button.append(content);
+                participantSuggestions.append(button);
+            });
+
+        const hasSuggestions = participantSuggestions.childElementCount > 0;
+        participantSuggestions.hidden = !hasSuggestions;
+        participantSearch.setAttribute('aria-expanded', String(hasSuggestions));
+    };
+
     const updateParticipants = () => {
         if (!(participantsList instanceof HTMLFieldSetElement) || !(typeSelect instanceof HTMLSelectElement)) {
             return;
@@ -1533,8 +1680,19 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         if (participantHint instanceof HTMLElement) {
             participantHint.hidden = Boolean(typeId);
         }
+        if (participantSearchContainer instanceof HTMLElement) {
+            participantSearchContainer.hidden = !typeId;
+        }
+        if (participantSearch instanceof HTMLInputElement) {
+            participantSearch.disabled = !typeId;
+        }
 
         let visibleCount = 0;
+        let eligibleCount = 0;
+        const query = participantSearch instanceof HTMLInputElement
+            ? participantSearch.value.trim().toLocaleLowerCase('id')
+            : '';
+        const eligibleRows = [];
         const rows = Array.from(participantsList.querySelectorAll('[data-issuance-participant-row]'));
         rows.forEach((row) => {
             if (!(row instanceof HTMLElement)) {
@@ -1547,15 +1705,34 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             const eligible = Boolean(typeId)
                 && !issuedTypes.includes(typeId)
                 && (!courseParticipantsOnly || isCourseParticipant);
-            row.hidden = !eligible;
             if (!eligible && checkbox instanceof HTMLInputElement) {
                 checkbox.checked = false;
                 checkbox.required = false;
             }
+
             if (eligible) {
-                visibleCount += 1;
+                eligibleCount += 1;
+                eligibleRows.push(row);
+                const searchableText = [
+                    checkbox instanceof HTMLInputElement ? checkbox.dataset.participantName : '',
+                    checkbox instanceof HTMLInputElement ? checkbox.dataset.participantNis : '',
+                ].filter(Boolean).join(' ').toLocaleLowerCase('id');
+                const matchesSearch = selectedParticipantId
+                    ? checkbox instanceof HTMLInputElement && checkbox.value === selectedParticipantId
+                    : query === '' || searchableText.includes(query);
+                row.hidden = !matchesSearch;
+                if (matchesSearch) {
+                    visibleCount += 1;
+                }
+            } else {
+                row.hidden = true;
             }
         });
+
+        renderParticipantSuggestions(eligibleRows, query);
+        if (clearParticipantSearch instanceof HTMLButtonElement) {
+            clearParticipantSearch.hidden = query === '';
+        }
 
         const firstEligibleCheckbox = rows
             .filter((row) => row instanceof HTMLElement && !row.hidden)
@@ -1563,7 +1740,10 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             .find((checkbox) => checkbox instanceof HTMLInputElement);
         syncParticipantRequired(firstEligibleCheckbox);
         if (participantsEmpty instanceof HTMLElement) {
-            participantsEmpty.hidden = !typeId || visibleCount > 0;
+            participantsEmpty.hidden = !typeId || eligibleCount > 0;
+        }
+        if (participantSearchEmpty instanceof HTMLElement) {
+            participantSearchEmpty.hidden = !typeId || query === '' || visibleCount > 0 || eligibleCount === 0;
         }
         if (selectAllParticipantsRow instanceof HTMLElement) {
             selectAllParticipantsRow.hidden = !typeId || visibleCount === 0;
@@ -1822,6 +2002,69 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         updateParticipants();
     }
     if (
+        participantSearch instanceof HTMLInputElement
+        && participantSuggestions instanceof HTMLElement
+    ) {
+        participantSearch.addEventListener('input', () => {
+            selectedParticipantId = null;
+            updateParticipants();
+        });
+        participantSearch.addEventListener('focus', updateParticipants);
+        participantSearch.addEventListener('keydown', (event) => {
+            const suggestions = participantSuggestionButtons();
+            if (event.key === 'Escape') {
+                hideParticipantSuggestions();
+                return;
+            }
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                if (suggestions.length === 0) {
+                    return;
+                }
+
+                event.preventDefault();
+                activeParticipantSuggestionIndex = event.key === 'ArrowDown'
+                    ? (activeParticipantSuggestionIndex + 1) % suggestions.length
+                    : (activeParticipantSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                suggestions.forEach((button, index) => {
+                    button.setAttribute('aria-selected', String(index === activeParticipantSuggestionIndex));
+                });
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                if (activeParticipantSuggestionIndex >= 0) {
+                    selectParticipantSuggestion(suggestions[activeParticipantSuggestionIndex]);
+                }
+            }
+        });
+        participantSearch.addEventListener('blur', () => {
+            window.setTimeout(hideParticipantSuggestions, 140);
+        });
+        participantSuggestions.addEventListener('mousedown', (event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-issuance-participant-suggestion]')) {
+                event.preventDefault();
+            }
+        });
+        participantSuggestions.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof Element) {
+                selectParticipantSuggestion(target.closest('[data-issuance-participant-suggestion]'));
+            }
+        });
+    }
+    if (
+        participantSearch instanceof HTMLInputElement
+        && clearParticipantSearch instanceof HTMLButtonElement
+    ) {
+        clearParticipantSearch.addEventListener('click', () => {
+            participantSearch.value = '';
+            selectedParticipantId = null;
+            updateParticipants();
+            hideParticipantSuggestions();
+            participantSearch.focus();
+        });
+    }
+    if (
         participantsList instanceof HTMLFieldSetElement
         && selectAllParticipants instanceof HTMLInputElement
     ) {
@@ -1839,6 +2082,11 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
 
     if (typeSelect instanceof HTMLSelectElement) {
         typeSelect.addEventListener('change', () => {
+            selectedParticipantId = null;
+            if (participantSearch instanceof HTMLInputElement) {
+                participantSearch.value = '';
+            }
+            hideParticipantSuggestions();
             updateParticipants();
             updateTypeFields();
             updatePreview();
