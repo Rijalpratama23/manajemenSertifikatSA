@@ -20,6 +20,8 @@
                 </div>
             </div>
             <dl class="participant-detail-list">
+                <div><dt>NIS</dt><dd>{{ $peserta->nis ?: '—' }}</dd></div>
+                <div><dt>Tempat, tanggal lahir</dt><dd>{{ $peserta->tempat_lahir && $peserta->tanggal_lahir ? $peserta->tempat_lahir.', '.$peserta->tanggal_lahir->locale('id')->translatedFormat('j F Y') : '—' }}</dd></div>
                 <div><dt>Asal Sekolah/Universitas</dt><dd>{{ $peserta->asal_instansi ?: '—' }}</dd></div>
                 <div><dt>Jumlah sertifikat</dt><dd>{{ number_format($peserta->sertifikat_count, 0, ',', '.') }}</dd></div>
                 <div><dt>Ditambahkan</dt><dd>{{ $peserta->dibuat_pada?->format('d M Y, H:i') ?? '—' }}</dd></div>

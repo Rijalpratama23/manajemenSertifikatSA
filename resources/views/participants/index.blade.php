@@ -8,7 +8,7 @@
                 <p>Pengolahan Data Peserta</p>
             </div>
             <div class="participants-header-actions">
-                <form class="participant-search" method="GET" action="{{ route('participants.index') }}" role="search">
+                <form class="participant-search" method="GET" action="{{ route('participants.index') }}" role="search" autocomplete="off" data-participant-search-form>
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" stroke-width="1.8"/>
                         <path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -18,8 +18,19 @@
                         name="search"
                         value="{{ $search }}"
                         placeholder="Cari peserta"
-                        aria-label="Cari nama, email, atau instansi peserta"
+                        aria-label="Cari nama, NIS, email, atau instansi peserta"
+                        autocomplete="off"
+                        aria-autocomplete="list"
+                        aria-controls="participant-search-suggestions"
+                        aria-expanded="false"
+                        data-participant-search
                     >
+                    <div class="certificate-type-search-suggestions" id="participant-search-suggestions" role="listbox" data-participant-search-suggestions hidden>
+                        @foreach ($participantSearchSuggestions as $suggestion)
+                            <button type="button" role="option" aria-selected="false" data-participant-search-suggestion>{{ $suggestion }}</button>
+                        @endforeach
+                        <p class="certificate-type-search-error" role="alert" data-participant-search-error hidden></p>
+                    </div>
                     <input type="hidden" name="jenis" value="{{ $selectedType }}">
                     <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
@@ -38,7 +49,7 @@
             class="participants-panel"
         >
             <div class="participant-table-toolbar">
-                <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options">
+                <form method="GET" action="{{ route('participants.index') }}" class="participant-table-options" data-participant-filter-form>
                     <input type="hidden" name="search" value="{{ $search }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
                     @if ($selectedType !== '')
@@ -55,24 +66,22 @@
                         <option value="newest" @selected($sort === 'newest')>Terbaru</option>
                         <option value="oldest" @selected($sort === 'oldest')>Terlama</option>
                     </select>
-                    <button class="participant-secondary-button" type="submit">Terapkan</button>
                 </form>
             </div>
 
-            <x-admin.participant-table :participants="$participants" :is-course-view="$isCourseView" />
+            <div data-participant-table>
+                <x-admin.participant-table :participants="$participants" :is-course-view="$isCourseView" />
+            </div>
 
-            <footer class="participant-table-footer">
-                <p>
-                    @if ($participants->total() > 0)
-                        Menampilkan {{ $participants->firstItem() }}–{{ $participants->lastItem() }} dari {{ $participants->total() }} peserta
-                    @else
-                        Menampilkan 0 peserta
-                    @endif
-                </p>
-                {{ $participants->onEachSide(1)->links() }}
-            </footer>
+            <div data-participant-footer>
+                @include('participants.partials.pagination', ['participants' => $participants])
+            </div>
         </x-admin.panel>
-        <x-admin.participant-create-modal />
+        <x-admin.participant-create-modal
+            :is-course-view="$isCourseView"
+            :selected-type="$selectedType"
+            :selected-certificate-type-name="$selectedCertificateTypeName"
+        />
         <x-admin.participant-edit-modal :edit-participant="$editParticipant" />
     </div>
 </x-admin.layout>

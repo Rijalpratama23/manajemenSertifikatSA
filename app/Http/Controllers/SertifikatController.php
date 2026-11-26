@@ -8,6 +8,7 @@ use App\Models\NomorUrut;
 use App\Models\Peserta;
 use App\Models\Sertifikat;
 use App\Models\TemplateSertifikat;
+use App\Services\CourseParticipantSyncService;
 use App\Services\CertificateZipService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -22,13 +23,23 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SertifikatController extends Controller
 {
-    public function create(Request $request): View
+    public function create(Request $request, CourseParticipantSyncService $courseParticipantSync): View
     {
+        $courseParticipantSync->sync();
+
         $peserta = Peserta::query()
             ->withCount('sertifikat')
             ->with(['sertifikat:id_sertifikat,id_peserta,id_jenis,status'])
             ->orderBy('nama')
-            ->get(['id_peserta', 'nama', 'email', 'asal_instansi']);
+            ->get([
+                'id_peserta',
+                'nis',
+                'nama',
+                'tempat_lahir',
+                'tanggal_lahir',
+                'email',
+                'asal_instansi',
+            ]);
 
         $jenisSertifikat = JenisSertifikat::query()
             ->where('aktif', true)
@@ -73,6 +84,16 @@ class SertifikatController extends Controller
                 && $certificate->berkas_pdf
                 && Storage::disk('local')->exists($certificate->berkas_pdf)
             ));
+        $pendingPdfStatuses = [
+            Sertifikat::PDF_STATUS_PENDING,
+            Sertifikat::PDF_STATUS_PROCESSING,
+        ];
+        $issuedPdfPending = (
+            $issuedCertificate
+            && in_array($issuedCertificate->pdf_status, $pendingPdfStatuses, true)
+        ) || $issuedCertificates->contains(
+            fn (Sertifikat $certificate) => in_array($certificate->pdf_status, $pendingPdfStatuses, true),
+        );
 
         return view('certificates.issue', compact(
             'peserta',
@@ -81,6 +102,7 @@ class SertifikatController extends Controller
             'issuedCertificate',
             'issuedCertificates',
             'issuedBatchReady',
+            'issuedPdfPending',
             'reissueCertificate',
         ));
     }
@@ -122,6 +144,8 @@ class SertifikatController extends Controller
             ? JenisSertifikat::query()->whereKey($typeId)->first(['nama_jenis', 'kode'])
             : null;
         $typeFields = $type ? $this->issuanceFieldsFor($type)['fields'] : [];
+        $isCourseCertificate = $type
+            && (bool) ($this->issuanceFieldsFor($type)['course_certificate'] ?? false);
         $validator = Validator::make($request->all(), [
             'id_peserta' => ['required', 'array', 'min:1'],
             'id_peserta.*' => ['required', 'integer', 'distinct', Rule::exists('peserta', 'id_peserta')],
@@ -144,7 +168,7 @@ class SertifikatController extends Controller
             'data_pendukung' => $typeFields
                 ? ['required', 'array:'.implode(',', array_column($typeFields, 'key'))]
                 : ['nullable', 'array'],
-            'deskripsi' => ['required', 'string', 'max:500'],
+            'deskripsi' => [$isCourseCertificate ? 'nullable' : 'required', 'string', 'max:500'],
         ]);
         foreach ($typeFields as $field) {
             $validator->addRules([
@@ -155,7 +179,6 @@ class SertifikatController extends Controller
                 ],
             ]);
         }
-
         if ($validator->fails()) {
             return redirect()->route('certificate-issues.create')
                 ->withErrors($validator)
@@ -173,6 +196,16 @@ class SertifikatController extends Controller
             if (isset($field['column'])) {
                 $legacyValues[$field['column']] = $value;
             }
+        }
+        if ($isCourseCertificate) {
+            $support = $validated['data_pendukung'];
+            $validated['deskripsi'] = sprintf(
+                'Telah menyelesaikan pembelajaran %s tahun %s dengan prestasi %s pada level %s.',
+                $support['nama_kursus'],
+                $support['tahun_ajaran'],
+                $support['prestasi'],
+                $support['level'],
+            );
         }
         $certificateIds = DB::transaction(function () use ($validated, $supportValues, $legacyValues) {
             $jenis = JenisSertifikat::query()

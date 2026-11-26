@@ -89,6 +89,12 @@ class TemplateSertifikatController extends Controller
         $activeTemplates = $this->activeTemplates();
         $selectedType = $validated['jenis'] ?? null;
         $positionConfig = $this->defaultPositionConfig();
+        if ($selectedType !== null) {
+            $selectedCertificateType = JenisSertifikat::query()->find($selectedType);
+            if ($selectedCertificateType && $this->isCourseType($selectedCertificateType)) {
+                $positionConfig['qr'] = ['x' => 25, 'y' => 77, 'size' => 9, 'visible' => true];
+            }
+        }
         $positionElements = $this->positionElements();
 
         return view('certificate-templates.form', compact(
@@ -131,6 +137,7 @@ class TemplateSertifikatController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->normalizePositionInput($request);
         $validated = $request->validate($this->rules());
         $file = $request->file('berkas_desain');
         $path = $file->store('certificate-templates', 'local');
@@ -162,6 +169,7 @@ class TemplateSertifikatController extends Controller
 
     public function update(Request $request, TemplateSertifikat $template): RedirectResponse
     {
+        $this->normalizePositionInput($request);
         $validator = Validator::make($request->all(), $this->rules($template));
 
         if ($validator->fails()) {
@@ -186,7 +194,10 @@ class TemplateSertifikatController extends Controller
             unset($validated['berkas_desain']);
         }
 
-        $validated['konfigurasi_posisi'] = $this->normalizePositionConfig($request->input('posisi'));
+        $validated['konfigurasi_posisi'] = $this->normalizePositionConfig(
+            $request->input('posisi'),
+            (array) $template->konfigurasi_posisi,
+        );
 
         DB::transaction(function () use ($template, $validated) {
             if (($validated['aktif'] ?? $template->aktif) && isset($validated['id_jenis'])) {
@@ -283,6 +294,7 @@ class TemplateSertifikatController extends Controller
             ],
             'aktif' => ['required', 'boolean'],
             'posisi' => ['nullable', 'array'],
+            'posisi.*.visible' => ['nullable', 'boolean'],
             'posisi.nama.x' => ['nullable', 'numeric', 'between:0,100'],
             'posisi.nama.y' => ['nullable', 'numeric', 'between:0,100'],
             'posisi.nama.size' => ['nullable', 'numeric', 'between:6,60'],
@@ -318,19 +330,42 @@ class TemplateSertifikatController extends Controller
     private function defaultPositionConfig(): array
     {
         return [
-            'nama' => ['x' => 50, 'y' => 40, 'size' => 25],
-            'nomor' => ['x' => 22, 'y' => 86, 'size' => 11],
-            'deskripsi' => ['x' => 50, 'y' => 58, 'size' => 15],
-            'tanggal' => ['x' => 50, 'y' => 76, 'size' => 13],
-            'qr' => ['x' => 82, 'y' => 86, 'size' => 12],
-            'diberikan' => ['x' => 50, 'y' => 31, 'size' => 13],
-            'judul' => ['x' => 50, 'y' => 17, 'size' => 30],
+            'nama' => ['x' => 50, 'y' => 40, 'size' => 25, 'visible' => true],
+            'nomor' => ['x' => 22, 'y' => 86, 'size' => 11, 'visible' => true],
+            'deskripsi' => ['x' => 50, 'y' => 58, 'size' => 15, 'visible' => true],
+            'tanggal' => ['x' => 50, 'y' => 76, 'size' => 13, 'visible' => true],
+            'qr' => ['x' => 82, 'y' => 86, 'size' => 12, 'visible' => true],
+            'diberikan' => ['x' => 50, 'y' => 31, 'size' => 13, 'visible' => true],
+            'judul' => ['x' => 50, 'y' => 17, 'size' => 30, 'visible' => true],
         ];
     }
 
-    private function normalizePositionConfig(mixed $position): array
+    private function normalizePositionInput(Request $request): void
     {
-        $defaults = $this->defaultPositionConfig();
+        $position = $request->input('posisi');
+
+        if (! is_array($position)) {
+            return;
+        }
+
+        foreach ($position as $key => $values) {
+            if (! is_array($values)) {
+                continue;
+            }
+
+            foreach (['x', 'y', 'size'] as $field) {
+                if (isset($values[$field]) && is_string($values[$field])) {
+                    $position[$key][$field] = str_replace(',', '.', trim($values[$field]));
+                }
+            }
+        }
+
+        $request->merge(['posisi' => $position]);
+    }
+
+    private function normalizePositionConfig(mixed $position, array $fallback = []): array
+    {
+        $defaults = array_replace_recursive($this->defaultPositionConfig(), $fallback);
 
         if (! is_array($position)) {
             return $defaults;
@@ -341,6 +376,9 @@ class TemplateSertifikatController extends Controller
                 'x' => isset($position[$key]['x']) ? (float) $position[$key]['x'] : $default['x'],
                 'y' => isset($position[$key]['y']) ? (float) $position[$key]['y'] : $default['y'],
                 'size' => isset($position[$key]['size']) ? (float) $position[$key]['size'] : $default['size'],
+                'visible' => isset($position[$key]['visible'])
+                    ? (bool) $position[$key]['visible']
+                    : ($default['visible'] ?? true),
             ];
         }
 
@@ -358,5 +396,11 @@ class TemplateSertifikatController extends Controller
             'tanggal' => ['label' => 'Tanggal / Periode', 'color' => 'purple'],
             'qr' => ['label' => 'QR Verifikasi', 'color' => 'red'],
         ];
+    }
+
+    private function isCourseType(JenisSertifikat $jenis): bool
+    {
+        return in_array($jenis->kode, ['KURSUS', '34'], true)
+            || mb_strtolower(trim($jenis->nama_jenis)) === 'kursus';
     }
 }

@@ -32,19 +32,6 @@
                     </label>
                     <button class="dashboard-period-submit" type="submit">Terapkan</button>
                 </form>
-                <button class="dashboard-action-button" type="button" disabled title="Fitur pencarian akan tersedia berikutnya">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" stroke-width="1.8"/>
-                        <path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    </svg>
-                    Cari sertifikat
-                </button>
-                <button class="dashboard-action-button dashboard-action-primary" type="button" disabled title="Fitur unduh arsip akan tersedia berikutnya">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M12 3.5v11m0 0 4-4m-4 4-4-4M4.5 15v4.5h15V15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    Unduh Arsip
-                </button>
             </div>
         </header>
 

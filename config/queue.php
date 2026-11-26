@@ -45,7 +45,7 @@ return [
         ],
 
         'certificate_pdfs' => [
-            'driver' => 'database',
+            'driver' => env('CERTIFICATE_PDF_QUEUE_DRIVER', env('QUEUE_CONNECTION', 'database')),
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => 'certificate-pdfs',

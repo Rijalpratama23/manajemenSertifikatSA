@@ -46,7 +46,7 @@
                         >Nonaktif</button>
                     </div>
                 </form>
-                <form class="participant-search" method="GET" action="{{ route('certificate-types.index') }}" role="search">
+                <form class="participant-search" method="GET" action="{{ route('certificate-types.index') }}" role="search" autocomplete="off" data-certificate-type-search-form>
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle cx="10.8" cy="10.8" r="6.3" stroke="currentColor" stroke-width="1.8"/>
                         <path d="m15.5 15.5 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -57,7 +57,18 @@
                         value="{{ $search }}"
                         placeholder="Cari jenis sertifikat"
                         aria-label="Cari kode atau nama jenis sertifikat"
+                        autocomplete="off"
+                        aria-autocomplete="list"
+                        aria-controls="certificate-type-search-suggestions"
+                        aria-expanded="false"
+                        data-certificate-type-search
                     >
+                            <div class="certificate-type-search-suggestions" id="certificate-type-search-suggestions" role="listbox" data-certificate-type-search-suggestions hidden>
+                                @foreach ($certificateTypeSuggestions as $suggestion)
+                                    <button type="button" role="option" aria-selected="false" data-certificate-type-search-suggestion>{{ $suggestion }}</button>
+                                @endforeach
+                                <p class="certificate-type-search-error" role="alert" data-certificate-type-search-error hidden></p>
+                            </div>
                     <input type="hidden" name="status" value="{{ $status }}">
                     <input type="hidden" name="sort" value="{{ $sort }}">
                     <input type="hidden" name="per_page" value="{{ $perPage }}">
@@ -90,18 +101,13 @@
                 </form>
             </div>
 
-            <x-admin.certificate-type-table :jenis-sertifikat="$jenisSertifikat" />
+            <div data-certificate-type-table>
+                <x-admin.certificate-type-table :jenis-sertifikat="$jenisSertifikat" />
+            </div>
 
-            <footer class="participant-table-footer">
-                <p>
-                    @if ($jenisSertifikat->total() > 0)
-                        Menampilkan {{ $jenisSertifikat->firstItem() }}–{{ $jenisSertifikat->lastItem() }} dari {{ $jenisSertifikat->total() }} jenis sertifikat
-                    @else
-                        Menampilkan 0 jenis sertifikat
-                    @endif
-                </p>
-                {{ $jenisSertifikat->onEachSide(1)->links() }}
-            </footer>
+            <div data-certificate-type-footer>
+                @include('certificate-types.partials.pagination', ['jenisSertifikat' => $jenisSertifikat])
+            </div>
         </x-admin.panel>
 
         <x-admin.certificate-type-modal

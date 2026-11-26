@@ -55,6 +55,8 @@ class AuthInteractionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertDontSee('Cari sertifikat')
+            ->assertDontSee('Unduh Arsip')
             ->assertSee('data-confirm-title="Keluar dari akun?"', false)
             ->assertSee('data-confirm-label="Ya, Keluar"', false);
 

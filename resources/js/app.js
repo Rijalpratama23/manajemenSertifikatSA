@@ -1,5 +1,276 @@
 import './bootstrap';
 
+if (document.querySelector('[data-pdf-status-pending]')) {
+    window.setTimeout(() => window.location.reload(), 5000);
+}
+
+const setupAjaxSearch = (selectors, failureMessage) => {
+    const form = document.querySelector(selectors.form);
+    const input = form?.querySelector(selectors.input);
+    const suggestionsContainer = form?.querySelector(selectors.suggestions);
+    const searchError = form?.querySelector(selectors.error);
+    const table = document.querySelector(selectors.table);
+    const footer = document.querySelector(selectors.footer);
+    const optionsForm = selectors.optionsForm
+        ? document.querySelector(selectors.optionsForm)
+        : null;
+
+    if (
+        !(form instanceof HTMLFormElement)
+        || !(input instanceof HTMLInputElement)
+        || !(suggestionsContainer instanceof HTMLElement)
+        || !(searchError instanceof HTMLElement)
+        || !(table instanceof HTMLElement)
+        || !(footer instanceof HTMLElement)
+    ) {
+        return;
+    }
+
+    let searchTimer;
+    let activeSuggestionIndex = -1;
+    let requestSequence = 0;
+
+    const visibleSuggestions = () => Array.from(
+        suggestionsContainer.querySelectorAll(selectors.suggestion),
+    ).filter((suggestion) => suggestion instanceof HTMLButtonElement && !suggestion.hidden);
+
+    const hideSuggestions = () => {
+        suggestionsContainer.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        activeSuggestionIndex = -1;
+        visibleSuggestions().forEach((suggestion) => suggestion.setAttribute('aria-selected', 'false'));
+    };
+
+    const searchUrl = (pageUrl = null) => {
+        const url = pageUrl
+            ? new URL(pageUrl, window.location.href)
+            : new URL(form.action, window.location.href);
+
+        if (!pageUrl) {
+            const parameters = new URLSearchParams(new FormData(form));
+            if (optionsForm instanceof HTMLFormElement) {
+                optionsForm.querySelectorAll('select[name]').forEach((select) => {
+                    if (select instanceof HTMLSelectElement) {
+                        parameters.set(select.name, select.value);
+                    }
+                });
+            }
+            url.search = parameters.toString();
+        }
+        url.searchParams.set('partial', '1');
+        return url;
+    };
+
+    const refreshResults = async (pageUrl = null, updateAddress = true) => {
+        const sequence = ++requestSequence;
+        const url = searchUrl(pageUrl);
+        table.setAttribute('aria-busy', 'true');
+        searchError.hidden = true;
+
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Search request failed with status ${response.status}`);
+            }
+
+            const results = await response.json();
+            if (sequence !== requestSequence) {
+                return;
+            }
+
+            table.innerHTML = results.table;
+            footer.innerHTML = results.footer;
+            const summary = document.querySelector(selectors.summary);
+            if (summary instanceof HTMLElement) {
+                summary.textContent = results.summary;
+            }
+
+            if (updateAddress) {
+                url.searchParams.delete('partial');
+                window.history.replaceState(null, '', url);
+            }
+        } catch (error) {
+            if (sequence !== requestSequence) {
+                return;
+            }
+
+            console.error(failureMessage, error);
+            searchError.textContent = failureMessage;
+            searchError.hidden = false;
+            suggestionsContainer.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+        } finally {
+            if (sequence === requestSequence) {
+                table.removeAttribute('aria-busy');
+            }
+        }
+    };
+
+    const updateSuggestions = () => {
+        const query = input.value.trim().toLocaleLowerCase('id');
+        const suggestions = Array.from(suggestionsContainer.querySelectorAll(selectors.suggestion));
+        let visibleCount = 0;
+        searchError.hidden = true;
+
+        suggestions.forEach((suggestion) => {
+            if (!(suggestion instanceof HTMLButtonElement)) {
+                return;
+            }
+
+            const matches = query !== ''
+                && suggestion.textContent.trim().toLocaleLowerCase('id').includes(query);
+            suggestion.hidden = !matches;
+            suggestion.setAttribute('aria-selected', 'false');
+            visibleCount += matches ? 1 : 0;
+        });
+
+        activeSuggestionIndex = -1;
+        suggestionsContainer.hidden = visibleCount === 0;
+        input.setAttribute('aria-expanded', String(visibleCount > 0));
+    };
+
+    const selectSuggestion = (suggestion) => {
+        if (!(suggestion instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        window.clearTimeout(searchTimer);
+        input.value = suggestion.textContent.trim();
+        hideSuggestions();
+        refreshResults();
+    };
+
+    input.addEventListener('input', () => {
+        updateSuggestions();
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => refreshResults(), 250);
+    });
+
+    input.addEventListener('focus', updateSuggestions);
+    input.addEventListener('keydown', (event) => {
+        const suggestions = visibleSuggestions();
+        if (event.key === 'Escape') {
+            hideSuggestions();
+            return;
+        }
+        if (suggestions.length === 0) {
+            return;
+        }
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeSuggestionIndex = event.key === 'ArrowDown'
+                ? (activeSuggestionIndex + 1) % suggestions.length
+                : (activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+            suggestions.forEach((suggestion, index) => {
+                suggestion.setAttribute('aria-selected', String(index === activeSuggestionIndex));
+            });
+        } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+            event.preventDefault();
+            selectSuggestion(suggestions[activeSuggestionIndex]);
+        }
+    });
+
+    input.addEventListener('blur', () => {
+        window.setTimeout(hideSuggestions, 140);
+    });
+
+    suggestionsContainer.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target instanceof Element) {
+            selectSuggestion(target.closest(selectors.suggestion));
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        window.clearTimeout(searchTimer);
+        hideSuggestions();
+        refreshResults();
+    });
+
+    form.querySelectorAll(selectors.suggestion).forEach((suggestion) => {
+        suggestion.addEventListener('mousedown', (event) => event.preventDefault());
+    });
+
+    if (optionsForm instanceof HTMLFormElement) {
+        optionsForm.addEventListener('change', (event) => {
+            if (!(event.target instanceof HTMLSelectElement)) {
+                return;
+            }
+
+            const matchingField = form.querySelector(`[name="${CSS.escape(event.target.name)}"]`);
+            if (matchingField instanceof HTMLInputElement) {
+                matchingField.value = event.target.value;
+            }
+
+            window.clearTimeout(searchTimer);
+            refreshResults();
+        });
+        optionsForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+        });
+    }
+
+    footer.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const link = target.closest('a[href]');
+        if (link instanceof HTMLAnchorElement) {
+            event.preventDefault();
+            refreshResults(link.href);
+        }
+    });
+
+    window.addEventListener('popstate', () => {
+        const url = new URL(window.location.href);
+        input.value = url.searchParams.get('search') ?? '';
+        if (optionsForm instanceof HTMLFormElement) {
+            optionsForm.querySelectorAll('select[name]').forEach((select) => {
+                if (select instanceof HTMLSelectElement && url.searchParams.has(select.name)) {
+                    select.value = url.searchParams.get(select.name);
+                    const matchingField = form.querySelector(`[name="${CSS.escape(select.name)}"]`);
+                    if (matchingField instanceof HTMLInputElement) {
+                        matchingField.value = select.value;
+                    }
+                }
+            });
+        }
+        refreshResults(url, false);
+    });
+};
+
+setupAjaxSearch({
+    form: '[data-certificate-type-search-form]',
+    input: '[data-certificate-type-search]',
+    suggestions: '[data-certificate-type-search-suggestions]',
+    suggestion: '[data-certificate-type-search-suggestion]',
+    error: '[data-certificate-type-search-error]',
+    table: '[data-certificate-type-table]',
+    footer: '[data-certificate-type-footer]',
+    summary: '.participants-panel .panel-heading p',
+}, 'Pencarian jenis sertifikat gagal diperbarui. Periksa koneksi lalu coba lagi.');
+
+setupAjaxSearch({
+    form: '[data-participant-search-form]',
+    input: '[data-participant-search]',
+    suggestions: '[data-participant-search-suggestions]',
+    suggestion: '[data-participant-search-suggestion]',
+    error: '[data-participant-search-error]',
+    table: '[data-participant-table]',
+    footer: '[data-participant-footer]',
+    optionsForm: '[data-participant-filter-form]',
+    summary: '.participants-panel .panel-heading p',
+}, 'Pencarian peserta gagal diperbarui. Periksa koneksi lalu coba lagi.');
+
 document.querySelectorAll('[data-participant-nav-dropdown]').forEach((dropdown) => {
     if (!(dropdown instanceof HTMLElement)) {
         return;
@@ -335,12 +606,18 @@ if (editParticipantModal instanceof HTMLDialogElement) {
 
         button.addEventListener('click', () => {
             const nameInput = editForm.querySelector('[name="nama"]');
+            const nisInput = editForm.querySelector('[name="nis"]');
+            const birthPlaceInput = editForm.querySelector('[name="tempat_lahir"]');
+            const birthDateInput = editForm.querySelector('[name="tanggal_lahir"]');
             const emailInput = editForm.querySelector('[name="email"]');
             const institutionInput = editForm.querySelector('[name="asal_instansi"]');
             const editUrl = button.dataset.editUrl;
 
             if (
                 !(nameInput instanceof HTMLInputElement)
+                || !(nisInput instanceof HTMLInputElement)
+                || !(birthPlaceInput instanceof HTMLInputElement)
+                || !(birthDateInput instanceof HTMLInputElement)
                 || !(emailInput instanceof HTMLInputElement)
                 || !(institutionInput instanceof HTMLInputElement)
                 || !editUrl
@@ -349,6 +626,9 @@ if (editParticipantModal instanceof HTMLDialogElement) {
             }
 
             nameInput.value = button.dataset.participantName ?? '';
+            nisInput.value = button.dataset.participantNis ?? '';
+            birthPlaceInput.value = button.dataset.participantBirthPlace ?? '';
+            birthDateInput.value = button.dataset.participantBirthDate ?? '';
             emailInput.value = button.dataset.participantEmail ?? '';
             institutionInput.value = button.dataset.participantInstitution ?? '';
             editForm.action = editUrl;
@@ -633,27 +913,78 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
         tanggal: { x: 50, y: 76, size: 13 },
         qr: { x: 82, y: 86, size: 12 },
     };
+    const getPositionDefaults = () => ({
+        ...positionDefaults,
+        qr: typeInput instanceof HTMLSelectElement
+            && typeInput.selectedOptions[0]?.dataset.courseTemplate === 'true'
+            ? { x: 25, y: 77, size: 9 }
+            : positionDefaults.qr,
+    });
+    let previousQrDefaults = getPositionDefaults().qr;
+    typeInput?.addEventListener('change', () => {
+        const nextQrDefaults = getPositionDefaults().qr;
+        const qrInputs = ['x', 'y', 'size'].map((property) => (
+            certificateTemplateForm.querySelector(`[data-position-${property}="qr"]`)
+        ));
+        const qrWasAtDefault = qrInputs.every((input, index) => (
+            input instanceof HTMLInputElement
+            && Number(input.value.replace(',', '.')) === previousQrDefaults[['x', 'y', 'size'][index]]
+        ));
+
+        if (qrWasAtDefault) {
+            qrInputs.forEach((input, index) => {
+                if (input instanceof HTMLInputElement) {
+                    input.value = String(nextQrDefaults[['x', 'y', 'size'][index]]);
+                }
+            });
+            updatePositionItem('qr');
+        }
+        previousQrDefaults = nextQrDefaults;
+    });
 
     const updatePositionItem = (key) => {
         const item = certificateTemplateForm.querySelector(`[data-position-item="${key}"]`);
         const xInput = certificateTemplateForm.querySelector(`[data-position-x="${key}"]`);
         const yInput = certificateTemplateForm.querySelector(`[data-position-y="${key}"]`);
         const sizeInput = certificateTemplateForm.querySelector(`[data-position-size="${key}"]`);
+        const visibilityInput = certificateTemplateForm.querySelector(`[data-position-visible="${key}"]`);
 
         if (!(item instanceof HTMLElement) || !(xInput instanceof HTMLInputElement) || !(yInput instanceof HTMLInputElement) || !(sizeInput instanceof HTMLInputElement)) {
             return;
         }
 
-        item.style.left = `${Math.min(100, Math.max(0, Number(xInput.value) || 0))}%`;
-        item.style.top = `${Math.min(100, Math.max(0, Number(yInput.value) || 0))}%`;
+        const isVisible = !(visibilityInput instanceof HTMLInputElement) || visibilityInput.checked;
+        const card = certificateTemplateForm.querySelector(`[data-position-card="${key}"]`);
+        const canvasWidth = positionCanvas instanceof HTMLElement
+            ? positionCanvas.getBoundingClientRect().width
+            : 841.89;
+        const fontScale = canvasWidth / 841.89;
+        const parseValue = (input, fallback) => {
+            const value = Number(input.value.trim().replace(',', '.'));
+            return Number.isFinite(value) ? value : fallback;
+        };
+
+        item.hidden = !isVisible;
+        [xInput, yInput, sizeInput].forEach((input) => {
+            input.disabled = !isVisible;
+        });
+        if (card instanceof HTMLElement) {
+            card.classList.toggle('is-hidden', !isVisible);
+        }
+        item.style.left = `${Math.min(100, Math.max(0, parseValue(xInput, 0)))}%`;
+        item.style.top = `${Math.min(100, Math.max(0, parseValue(yInput, 0)))}%`;
 
         if (key === 'qr') {
-            item.style.width = `${Math.min(40, Math.max(5, Number(sizeInput.value) || 12))}%`;
+            item.style.width = `${Math.min(40, Math.max(5, parseValue(sizeInput, 12)))}%`;
             item.style.height = 'auto';
             item.style.aspectRatio = '1';
-            item.style.fontSize = '10px';
+            item.style.fontSize = `${10 * fontScale}px`;
         } else {
-            item.style.fontSize = `${Math.min(key === 'nama' || key === 'judul' ? 60 : 40, Math.max(6, Number(sizeInput.value) || 12))}px`;
+            const size = Math.min(
+                key === 'nama' || key === 'judul' ? 60 : 40,
+                Math.max(6, parseValue(sizeInput, 12)),
+            );
+            item.style.fontSize = `${size * fontScale}px`;
         }
     };
 
@@ -719,16 +1050,36 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
         });
     });
 
+    certificateTemplateForm.querySelectorAll('[data-position-visible]').forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+
+        input.addEventListener('change', () => {
+            const key = input.dataset.positionVisible;
+            if (key) {
+                updatePositionItem(key);
+            }
+        });
+    });
+
     resetPositionButton?.addEventListener('click', () => {
-        Object.entries(positionDefaults).forEach(([key, position]) => {
+        Object.entries(getPositionDefaults()).forEach(([key, position]) => {
             ['x', 'y', 'size'].forEach((property) => {
                 const input = certificateTemplateForm.querySelector(`[data-position-${property}="${key}"]`);
                 if (input instanceof HTMLInputElement) {
                     input.value = String(position[property]);
                 }
             });
+            const visibilityInput = certificateTemplateForm.querySelector(`[data-position-visible="${key}"]`);
+            if (visibilityInput instanceof HTMLInputElement) {
+                visibilityInput.checked = true;
+            }
             updatePositionItem(key);
         });
+    });
+    window.addEventListener('resize', () => {
+        Object.keys(positionDefaults).forEach(updatePositionItem);
     });
     const initialFileName = fileName instanceof HTMLElement ? fileName.textContent.trim() : '';
     const initialPreviewSrc = previewImage instanceof HTMLImageElement
@@ -913,6 +1264,8 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
     ) {
         previewButton.addEventListener('click', () => {
             previewCanvas.style.setProperty('--template-preview-background', `url("${previewImage.src}")`);
+            previewDialog.showModal();
+            const previewScale = previewCanvas.getBoundingClientRect().width / 841.89;
 
             const previewMap = {
                 judul: previewCanvas.querySelector('.preview-sample-title'),
@@ -920,11 +1273,10 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
                 nama: previewCanvas.querySelector('.preview-sample-recipient'),
                 nomor: previewCanvas.querySelector('.preview-sample-number'),
                 deskripsi: previewCanvas.querySelector('.preview-sample-description'),
-                tanggal: previewCanvas.querySelector('.preview-sample-signature'),
+                tanggal: previewCanvas.querySelector('.preview-sample-date'),
                 qr: previewCanvas.querySelector('.preview-sample-qr'),
             };
 
-            previewCanvas.querySelector('.preview-sample-given')?.removeAttribute('hidden');
             Object.entries(previewMap).forEach(([key, element]) => {
                 if (!(element instanceof HTMLElement)) {
                     return;
@@ -933,10 +1285,16 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
                 const xInput = certificateTemplateForm.querySelector(`[data-position-x="${key}"]`);
                 const yInput = certificateTemplateForm.querySelector(`[data-position-y="${key}"]`);
                 const sizeInput = certificateTemplateForm.querySelector(`[data-position-size="${key}"]`);
-                const x = xInput instanceof HTMLInputElement ? Number(xInput.value) : 50;
-                const y = yInput instanceof HTMLInputElement ? Number(yInput.value) : 50;
-                const size = sizeInput instanceof HTMLInputElement ? Number(sizeInput.value) : 12;
+                const visibilityInput = certificateTemplateForm.querySelector(`[data-position-visible="${key}"]`);
+                const parseValue = (input, fallback) => {
+                    const value = Number(input.value.trim().replace(',', '.'));
+                    return Number.isFinite(value) ? value : fallback;
+                };
+                const x = xInput instanceof HTMLInputElement ? parseValue(xInput, 50) : 50;
+                const y = yInput instanceof HTMLInputElement ? parseValue(yInput, 50) : 50;
+                const size = sizeInput instanceof HTMLInputElement ? parseValue(sizeInput, 12) : 12;
 
+                element.hidden = visibilityInput instanceof HTMLInputElement && !visibilityInput.checked;
                 element.style.left = `${x}%`;
                 element.style.top = `${y}%`;
 
@@ -944,11 +1302,11 @@ if (certificateTemplateForm instanceof HTMLFormElement) {
                     element.style.width = `${size}%`;
                     element.style.height = 'auto';
                     element.style.aspectRatio = '1';
+                    element.style.fontSize = `${10 * previewScale}px`;
                 } else {
-                    element.style.fontSize = `${size}px`;
+                    element.style.fontSize = `${size * previewScale}px`;
                 }
             });
-            previewDialog.showModal();
         });
 
         previewDialog.querySelector('[data-close-template-form-preview]')?.addEventListener('click', () => {
@@ -1153,7 +1511,12 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
 
     const participantsList = certificateIssuanceForm.querySelector('[data-issuance-participants]');
     const participantHint = certificateIssuanceForm.querySelector('[data-issuance-participant-hint]');
+    const participantSearchContainer = certificateIssuanceForm.querySelector('[data-issuance-participant-search-container]');
+    const participantSearch = certificateIssuanceForm.querySelector('[data-issuance-participant-search]');
+    const clearParticipantSearch = certificateIssuanceForm.querySelector('[data-clear-issuance-participant-search]');
+    const participantSuggestions = certificateIssuanceForm.querySelector('[data-issuance-participant-suggestions]');
     const participantsEmpty = certificateIssuanceForm.querySelector('[data-issuance-participants-empty]');
+    const participantSearchEmpty = certificateIssuanceForm.querySelector('[data-issuance-search-empty]');
     const selectAllParticipants = certificateIssuanceForm.querySelector('[data-issuance-select-all]');
     const selectAllParticipantsRow = certificateIssuanceForm.querySelector('[data-issuance-select-all-row]');
     const typeSelect = certificateIssuanceForm.querySelector('[data-issuance-type]');
@@ -1162,15 +1525,35 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
     const templateBadge = certificateIssuanceForm.querySelector('[data-issuance-template-badge]');
     const certificatePreview = certificateIssuanceForm.querySelector('[data-issuance-certificate]');
     const namePreview = certificateIssuanceForm.querySelector('[data-preview-participant]');
+    const participantDetailsPreview = certificateIssuanceForm.querySelector('[data-preview-participant-details]');
     const typePreview = certificateIssuanceForm.querySelector('[data-preview-type]');
     const periodPreview = certificateIssuanceForm.querySelector('[data-preview-period]');
     const durationPreview = certificateIssuanceForm.querySelector('[data-preview-duration]');
     const scorePreview = certificateIssuanceForm.querySelector('[data-preview-score]');
     const dateStart = certificateIssuanceForm.querySelector('[data-issuance-start]');
     const dateEnd = certificateIssuanceForm.querySelector('[data-issuance-end]');
+    const issuanceDate = certificateIssuanceForm.querySelector('[data-issuance-date]');
     const descriptionInput = certificateIssuanceForm.querySelector('[data-issuance-description]');
+    const descriptionLabel = certificateIssuanceForm.querySelector('[data-issuance-description-label]');
     const descriptionPreview = certificateIssuanceForm.querySelector('[data-preview-description]');
     const supportPreview = certificateIssuanceForm.querySelector('[data-preview-support]');
+    const issuancePositionDefaults = {
+        judul: { x: 50, y: 17, size: 30 },
+        diberikan: { x: 50, y: 31, size: 13 },
+        nama: { x: 50, y: 40, size: 25 },
+        nomor: { x: 22, y: 86, size: 11 },
+        deskripsi: { x: 50, y: 58, size: 15 },
+        tanggal: { x: 50, y: 76, size: 13 },
+        qr: { x: 82, y: 86, size: 12 },
+    };
+    const issuancePositionWidths = {
+        judul: (90 / 297) * 100,
+        diberikan: (50 / 297) * 100,
+        nama: (160 / 297) * 100,
+        nomor: (80 / 297) * 100,
+        deskripsi: (180 / 297) * 100,
+        tanggal: (180 / 297) * 100,
+    };
     const formatIssuanceDate = (value) => {
         if (!value) {
             return '';
@@ -1184,18 +1567,132 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         }).format(date);
     };
 
+    let activeParticipantSuggestionIndex = -1;
+    let selectedParticipantId = null;
+    const participantSuggestionButtons = () => (
+        participantSuggestions instanceof HTMLElement
+            ? Array.from(participantSuggestions.querySelectorAll('[data-issuance-participant-suggestion]'))
+                .filter((button) => button instanceof HTMLButtonElement)
+            : []
+    );
+    const hideParticipantSuggestions = () => {
+        if (participantSuggestions instanceof HTMLElement) {
+            participantSuggestions.hidden = true;
+        }
+        if (participantSearch instanceof HTMLInputElement) {
+            participantSearch.setAttribute('aria-expanded', 'false');
+        }
+        activeParticipantSuggestionIndex = -1;
+        participantSuggestionButtons().forEach((button) => {
+            button.setAttribute('aria-selected', 'false');
+        });
+    };
+    const selectParticipantSuggestion = (button) => {
+        if (
+            !(button instanceof HTMLButtonElement)
+            || !(participantSearch instanceof HTMLInputElement)
+        ) {
+            return;
+        }
+
+        selectedParticipantId = button.dataset.participantId ?? null;
+        participantSearch.value = button.dataset.participantName ?? '';
+        if (clearParticipantSearch instanceof HTMLButtonElement) {
+            clearParticipantSearch.hidden = participantSearch.value === '';
+        }
+        updateParticipants();
+        hideParticipantSuggestions();
+        participantSearch.focus();
+    };
+    const renderParticipantSuggestions = (eligibleRows, query) => {
+        if (
+            !(participantSuggestions instanceof HTMLElement)
+            || !(participantSearch instanceof HTMLInputElement)
+        ) {
+            return;
+        }
+
+        participantSuggestions.replaceChildren();
+        activeParticipantSuggestionIndex = -1;
+        if (query === '') {
+            hideParticipantSuggestions();
+            return;
+        }
+
+        eligibleRows
+            .filter((row) => {
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (!(checkbox instanceof HTMLInputElement)) {
+                    return false;
+                }
+
+                const searchableText = [
+                    checkbox.dataset.participantName,
+                    checkbox.dataset.participantNis,
+                ].filter(Boolean).join(' ').toLocaleLowerCase('id');
+                return searchableText.includes(query);
+            })
+            .slice(0, 7)
+            .forEach((row) => {
+                const checkbox = row.querySelector('input[type="checkbox"]');
+                if (!(checkbox instanceof HTMLInputElement)) {
+                    return;
+                }
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.setAttribute('role', 'option');
+                button.setAttribute('aria-selected', 'false');
+                button.dataset.issuanceParticipantSuggestion = '';
+                button.dataset.participantId = checkbox.value;
+                button.dataset.participantName = checkbox.dataset.participantName ?? '';
+
+                const content = document.createElement('span');
+                const name = document.createElement('strong');
+                name.textContent = checkbox.dataset.participantName ?? '';
+                content.append(name);
+
+                const nis = checkbox.dataset.participantNis ?? '';
+                if (nis !== '') {
+                    const identifier = document.createElement('small');
+                    identifier.textContent = `NIS ${nis}`;
+                    content.append(identifier);
+                }
+                button.append(content);
+                participantSuggestions.append(button);
+            });
+
+        const hasSuggestions = participantSuggestions.childElementCount > 0;
+        participantSuggestions.hidden = !hasSuggestions;
+        participantSearch.setAttribute('aria-expanded', String(hasSuggestions));
+    };
+
     const updateParticipants = () => {
         if (!(participantsList instanceof HTMLFieldSetElement) || !(typeSelect instanceof HTMLSelectElement)) {
             return;
         }
 
         const typeId = typeSelect.value;
+        const selectedType = typeSelect.selectedOptions[0];
+        const courseParticipantsOnly = selectedType instanceof HTMLOptionElement
+            && selectedType.dataset.courseParticipants === 'true';
         participantsList.disabled = !typeId;
         if (participantHint instanceof HTMLElement) {
             participantHint.hidden = Boolean(typeId);
         }
+        if (participantSearchContainer instanceof HTMLElement) {
+            participantSearchContainer.hidden = !typeId;
+        }
+        if (participantSearch instanceof HTMLInputElement) {
+            participantSearch.disabled = !typeId;
+        }
 
         let visibleCount = 0;
+        let eligibleCount = 0;
+        const query = participantSearch instanceof HTMLInputElement
+            ? participantSearch.value.trim().toLocaleLowerCase('id')
+            : '';
+        const eligibleRows = [];
         const rows = Array.from(participantsList.querySelectorAll('[data-issuance-participant-row]'));
         rows.forEach((row) => {
             if (!(row instanceof HTMLElement)) {
@@ -1204,16 +1701,38 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
 
             const checkbox = row.querySelector('input[type="checkbox"]');
             const issuedTypes = (row.dataset.issuedTypes ?? '').split(',').filter(Boolean);
-            const eligible = Boolean(typeId) && !issuedTypes.includes(typeId);
-            row.hidden = !eligible;
+            const isCourseParticipant = row.dataset.courseParticipant === 'true';
+            const eligible = Boolean(typeId)
+                && !issuedTypes.includes(typeId)
+                && (!courseParticipantsOnly || isCourseParticipant);
             if (!eligible && checkbox instanceof HTMLInputElement) {
                 checkbox.checked = false;
                 checkbox.required = false;
             }
+
             if (eligible) {
-                visibleCount += 1;
+                eligibleCount += 1;
+                eligibleRows.push(row);
+                const searchableText = [
+                    checkbox instanceof HTMLInputElement ? checkbox.dataset.participantName : '',
+                    checkbox instanceof HTMLInputElement ? checkbox.dataset.participantNis : '',
+                ].filter(Boolean).join(' ').toLocaleLowerCase('id');
+                const matchesSearch = selectedParticipantId
+                    ? checkbox instanceof HTMLInputElement && checkbox.value === selectedParticipantId
+                    : query === '' || searchableText.includes(query);
+                row.hidden = !matchesSearch;
+                if (matchesSearch) {
+                    visibleCount += 1;
+                }
+            } else {
+                row.hidden = true;
             }
         });
+
+        renderParticipantSuggestions(eligibleRows, query);
+        if (clearParticipantSearch instanceof HTMLButtonElement) {
+            clearParticipantSearch.hidden = query === '';
+        }
 
         const firstEligibleCheckbox = rows
             .filter((row) => row instanceof HTMLElement && !row.hidden)
@@ -1221,7 +1740,10 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             .find((checkbox) => checkbox instanceof HTMLInputElement);
         syncParticipantRequired(firstEligibleCheckbox);
         if (participantsEmpty instanceof HTMLElement) {
-            participantsEmpty.hidden = !typeId || visibleCount > 0;
+            participantsEmpty.hidden = !typeId || eligibleCount > 0;
+        }
+        if (participantSearchEmpty instanceof HTMLElement) {
+            participantSearchEmpty.hidden = !typeId || query === '' || visibleCount > 0 || eligibleCount === 0;
         }
         if (selectAllParticipantsRow instanceof HTMLElement) {
             selectAllParticipantsRow.hidden = !typeId || visibleCount === 0;
@@ -1234,10 +1756,10 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             return;
         }
 
-        const checked = Array.from(
+        const selectedParticipants = Array.from(
             participantsList.querySelectorAll('input[type="checkbox"]:checked'),
-            (checkbox) => checkbox.dataset.participantName,
         );
+        const checked = selectedParticipants.map((checkbox) => checkbox.dataset.participantName);
         const firstEligibleCheckbox = Array.from(
             participantsList.querySelectorAll('[data-issuance-participant-row]:not([hidden]) input[type="checkbox"]'),
         ).find((checkbox) => checkbox instanceof HTMLInputElement);
@@ -1246,6 +1768,29 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         namePreview.textContent = checked.length > 1
             ? `${checked.length} peserta dipilih`
             : checked[0] ?? 'Nama Peserta';
+
+        if (participantDetailsPreview instanceof HTMLElement) {
+            const participant = selectedParticipants[0];
+            const isCourse = typeSelect instanceof HTMLSelectElement
+                && typeSelect.selectedOptions[0]?.dataset.courseParticipants === 'true';
+            const birthPlace = participant instanceof HTMLInputElement
+                ? participant.dataset.participantBirthPlace ?? ''
+                : '';
+            const birthDate = participant instanceof HTMLInputElement
+                ? participant.dataset.participantBirthDate ?? ''
+                : '';
+            const nis = participant instanceof HTMLInputElement
+                ? participant.dataset.participantNis ?? ''
+                : '';
+            const birthDetails = [birthPlace, birthDate].filter(Boolean).join(', ');
+            participantDetailsPreview.textContent = selectedParticipants.length === 1
+                ? [
+                    birthDetails ? `Tempat, Tgl. Lahir: ${birthDetails}` : '',
+                    `Nomor Induk: ${nis || '—'}`,
+                ].filter(Boolean).join('  ')
+                : '';
+            participantDetailsPreview.hidden = !isCourse || selectedParticipants.length !== 1;
+        }
     };
 
     const syncParticipantRequired = (firstEligibleCheckbox) => {
@@ -1325,6 +1870,18 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         const selectedTemplateName = option?.dataset.templateName ?? '';
         const selectedTypeName = option?.dataset.typeName ?? 'Jenis Sertifikat';
         const templateUrl = option?.dataset.templateUrl ?? '';
+        const isCourseCertificate = option?.dataset.courseParticipants === 'true';
+        const savedPositions = JSON.parse(option?.dataset.templatePositions ?? '{}');
+        const getPositionValue = (value, fallback) => {
+            const parsed = Number(value);
+            return value !== null && value !== '' && Number.isFinite(parsed) ? parsed : fallback;
+        };
+        const defaultPositions = {
+            ...issuancePositionDefaults,
+            qr: isCourseCertificate
+                ? { x: 25, y: 77, size: 9 }
+                : issuancePositionDefaults.qr,
+        };
         templateId.value = selectedTemplateId;
         typePreview.textContent = selectedTypeName;
         templateBadge.textContent = selectedTemplateName || 'Pilih jenis';
@@ -1333,19 +1890,85 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
             : 'Pilih jenis sertifikat untuk menentukan template aktif.';
         templateUsed.hidden = !selectedTemplateName;
         certificatePreview.style.backgroundImage = templateUrl
-            ? `linear-gradient(rgb(255 255 255 / 27%), rgb(255 255 255 / 27%)), url("${templateUrl}")`
+            ? `url("${templateUrl}")`
             : 'none';
+        const previewScale = certificatePreview.getBoundingClientRect().width / 841.89;
+        certificatePreview.querySelectorAll('[data-preview-position]').forEach((element) => {
+            if (!(element instanceof HTMLElement)) {
+                return;
+            }
 
-        if (periodPreview instanceof HTMLElement && dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {
-            const start = formatIssuanceDate(dateStart.value);
-            const end = formatIssuanceDate(dateEnd.value);
-            periodPreview.textContent = start && end ? `periode ${start} – ${end}` : '';
-        }
+            const key = element.dataset.previewPosition;
+            const defaults = key ? defaultPositions[key] : null;
+            if (!key || !defaults) {
+                return;
+            }
+
+            const position = savedPositions[key] ?? {};
+            const x = getPositionValue(position.x, defaults.x);
+            const y = getPositionValue(position.y, defaults.y);
+            const size = getPositionValue(position.size, defaults.size);
+            element.hidden = position.visible === false;
+            element.style.left = `${x}%`;
+            element.style.top = `${y}%`;
+            element.style.fontSize = `${size * previewScale}px`;
+
+            if (key === 'qr') {
+                element.style.width = `${size}%`;
+                element.style.height = 'auto';
+                element.style.aspectRatio = '1';
+            } else {
+                element.style.width = `${issuancePositionWidths[key]}%`;
+            }
+        });
 
         const activeFields = activeSupportFields();
+        certificatePreview.classList.toggle('is-course', isCourseCertificate);
+        if (typePreview instanceof HTMLElement) {
+            typePreview.hidden = isCourseCertificate;
+        }
+        if (participantDetailsPreview instanceof HTMLElement) {
+            participantDetailsPreview.style.fontSize = `${11 * previewScale}px`;
+        }
+        const supportValue = (key) => {
+            const input = activeFields?.querySelector(`[data-support-key="${key}"]`);
+            return input instanceof HTMLInputElement ? input.value.trim() : '';
+        };
+        if (periodPreview instanceof HTMLElement && dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {
+            if (isCourseCertificate) {
+                const city = supportValue('kota_terbit');
+                const date = issuanceDate instanceof HTMLInputElement
+                    ? formatIssuanceDate(issuanceDate.value)
+                    : '';
+                periodPreview.textContent = city && date ? `${city}, ${date}` : '';
+            } else {
+                const start = formatIssuanceDate(dateStart.value);
+                const end = formatIssuanceDate(dateEnd.value);
+                periodPreview.textContent = start && end ? `periode ${start} – ${end}` : '';
+            }
+        }
+
         const durationInput = activeFields?.querySelector('[data-support-column="durasi"]');
         const scoreInput = activeFields?.querySelector('[data-support-column="nilai"]');
         const predicateInput = activeFields?.querySelector('[data-support-column="predikat"]');
+        if (descriptionInput instanceof HTMLTextAreaElement) {
+            descriptionInput.readOnly = isCourseCertificate;
+            descriptionInput.required = !isCourseCertificate;
+            if (descriptionLabel instanceof HTMLElement) {
+                descriptionLabel.innerHTML = isCourseCertificate
+                    ? 'Deskripsi otomatis dari data Kursus'
+                    : 'Deskripsi sertifikat <b>*</b>';
+            }
+            if (isCourseCertificate) {
+                const courseName = supportValue('nama_kursus');
+                const schoolYear = supportValue('tahun_ajaran');
+                const achievement = supportValue('prestasi');
+                const level = supportValue('level');
+                descriptionInput.value = courseName && schoolYear && achievement && level
+                    ? `Telah menyelesaikan pembelajaran ${courseName} tahun ${schoolYear} dengan prestasi ${achievement} pada level ${level}.`
+                    : '';
+            }
+        }
         if (durationPreview instanceof HTMLElement && durationInput instanceof HTMLInputElement) {
             durationPreview.textContent = durationInput.value.trim()
                 ? `(${durationInput.value.trim()})`
@@ -1360,11 +1983,13 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
                 .join(' · ');
         }
         if (supportPreview instanceof HTMLElement) {
-            const extraValues = Array.from(activeFields?.querySelectorAll('[data-support-input]') ?? [])
-                .filter((input) => input instanceof HTMLInputElement
-                    && input.value.trim()
-                    && !input.dataset.supportColumn)
-                .map((input) => `${input.dataset.supportLabel}: ${input.value.trim()}`);
+            const extraValues = isCourseCertificate
+                ? []
+                : Array.from(activeFields?.querySelectorAll('[data-support-input]') ?? [])
+                    .filter((input) => input instanceof HTMLInputElement
+                        && input.value.trim()
+                        && !input.dataset.supportColumn)
+                    .map((input) => `${input.dataset.supportLabel}: ${input.value.trim()}`);
             supportPreview.textContent = extraValues.join(' · ');
         }
         if (descriptionPreview instanceof HTMLElement && descriptionInput instanceof HTMLTextAreaElement) {
@@ -1375,6 +2000,69 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
     if (participantsList instanceof HTMLFieldSetElement) {
         participantsList.addEventListener('change', updateParticipantPreview);
         updateParticipants();
+    }
+    if (
+        participantSearch instanceof HTMLInputElement
+        && participantSuggestions instanceof HTMLElement
+    ) {
+        participantSearch.addEventListener('input', () => {
+            selectedParticipantId = null;
+            updateParticipants();
+        });
+        participantSearch.addEventListener('focus', updateParticipants);
+        participantSearch.addEventListener('keydown', (event) => {
+            const suggestions = participantSuggestionButtons();
+            if (event.key === 'Escape') {
+                hideParticipantSuggestions();
+                return;
+            }
+
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                if (suggestions.length === 0) {
+                    return;
+                }
+
+                event.preventDefault();
+                activeParticipantSuggestionIndex = event.key === 'ArrowDown'
+                    ? (activeParticipantSuggestionIndex + 1) % suggestions.length
+                    : (activeParticipantSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                suggestions.forEach((button, index) => {
+                    button.setAttribute('aria-selected', String(index === activeParticipantSuggestionIndex));
+                });
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                if (activeParticipantSuggestionIndex >= 0) {
+                    selectParticipantSuggestion(suggestions[activeParticipantSuggestionIndex]);
+                }
+            }
+        });
+        participantSearch.addEventListener('blur', () => {
+            window.setTimeout(hideParticipantSuggestions, 140);
+        });
+        participantSuggestions.addEventListener('mousedown', (event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-issuance-participant-suggestion]')) {
+                event.preventDefault();
+            }
+        });
+        participantSuggestions.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof Element) {
+                selectParticipantSuggestion(target.closest('[data-issuance-participant-suggestion]'));
+            }
+        });
+    }
+    if (
+        participantSearch instanceof HTMLInputElement
+        && clearParticipantSearch instanceof HTMLButtonElement
+    ) {
+        clearParticipantSearch.addEventListener('click', () => {
+            participantSearch.value = '';
+            selectedParticipantId = null;
+            updateParticipants();
+            hideParticipantSuggestions();
+            participantSearch.focus();
+        });
     }
     if (
         participantsList instanceof HTMLFieldSetElement
@@ -1394,6 +2082,11 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
 
     if (typeSelect instanceof HTMLSelectElement) {
         typeSelect.addEventListener('change', () => {
+            selectedParticipantId = null;
+            if (participantSearch instanceof HTMLInputElement) {
+                participantSearch.value = '';
+            }
+            hideParticipantSuggestions();
             updateParticipants();
             updateTypeFields();
             updatePreview();
@@ -1415,6 +2108,7 @@ if (certificateIssuanceForm instanceof HTMLFormElement) {
         input.addEventListener('input', updatePreview);
         input.addEventListener('change', updatePreview);
     });
+    window.addEventListener('resize', updatePreview);
 
     if (dateStart instanceof HTMLInputElement && dateEnd instanceof HTMLInputElement) {
         dateStart.addEventListener('change', () => {

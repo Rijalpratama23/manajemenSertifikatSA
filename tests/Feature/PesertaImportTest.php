@@ -96,4 +96,42 @@ class PesertaImportTest extends TestCase
             }
         }
     }
+
+    public function test_it_imports_the_email_free_participant_template_by_column_headers(): void
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Data Peserta');
+        $sheet->fromArray([
+            ['No', 'Nama', 'Asal Sekolah/Universitas', 'NIS', 'Tempat Lahir', 'Tanggal Lahir'],
+            [1, 'Siswa Kursus', 'SMA Contoh', 202600001, 'Sukabumi', '2009-03-21'],
+        ], null, 'A1');
+
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'peserta-import-no-email-'.uniqid('', true).'.xlsx';
+
+        try {
+            (new Xlsx($spreadsheet))->save($path);
+
+            $import = new PesertaImport();
+            Excel::import($import, $path);
+
+            $this->assertSame(1, $import->importedCount());
+            $this->assertDatabaseHas('peserta', [
+                'nama' => 'Siswa Kursus',
+                'email' => null,
+                'asal_instansi' => 'SMA Contoh',
+                'nis' => 202600001,
+                'tempat_lahir' => 'Sukabumi',
+            ]);
+            $this->assertSame(
+                '2009-03-21',
+                Peserta::query()->where('nis', 202600001)->firstOrFail()->tanggal_lahir->toDateString(),
+            );
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
 }
