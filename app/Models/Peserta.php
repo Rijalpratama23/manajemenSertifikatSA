@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Peserta extends Model
@@ -32,5 +33,17 @@ class Peserta extends Model
     public function sertifikat(): HasMany
     {
         return $this->hasMany(Sertifikat::class, 'id_peserta', 'id_peserta');
+    }
+
+    public function jenisSertifikat(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            JenisSertifikat::class,
+            'peserta_jenis_sertifikat',
+            'id_peserta',
+            'id_jenis',
+            'id_peserta',
+            'id_jenis',
+        );
     }
 }

@@ -28,7 +28,7 @@
 
         <x-admin.participant-form
             :action="route('participants.store')"
-            :cancel-url="route('participants.index')"
+            :cancel-url="route('participants.index', $selectedType !== '' ? ['jenis' => $selectedType] : [])"
             submit-label="Simpan"
             :modal="true"
             :course-context="$isCourseView"

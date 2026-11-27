@@ -13,7 +13,8 @@
                 :action="route('participants.update', $participant)"
                 method="PUT"
                 submit-label="Simpan Perubahan"
-                :cancel-url="route('participants.index')"
+                :cancel-url="route('participants.index', request()->filled('jenis') ? ['jenis' => request('jenis')] : [])"
+                :selected-type="request('jenis', '')"
             />
         </x-admin.panel>
     </div>

@@ -122,9 +122,14 @@ class JenisSertifikatController extends Controller
 
     public function destroy(JenisSertifikat $jenis): RedirectResponse
     {
-        if ($jenis->template()->exists() || $jenis->sertifikat()->exists() || $jenis->nomorUrut()->exists()) {
+        if (
+            $jenis->template()->exists()
+            || $jenis->sertifikat()->exists()
+            || $jenis->peserta()->exists()
+            || $jenis->nomorUrut()->exists()
+        ) {
             return redirect()->route('certificate-types.index')
-                ->with('error', 'Jenis sertifikat tidak dapat dihapus karena masih digunakan oleh template, sertifikat, atau nomor urut.');
+                ->with('error', 'Jenis sertifikat tidak dapat dihapus karena masih digunakan oleh peserta, template, sertifikat, atau nomor urut.');
         }
 
         $jenis->delete();
