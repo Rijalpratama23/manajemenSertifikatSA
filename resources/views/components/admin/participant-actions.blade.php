@@ -1,7 +1,10 @@
 @props(['participant'])
 
 <div class="participant-row-actions">
-    <a class="participant-action" href="{{ route('participants.show', $participant) }}">Lihat</a>
+    <a
+        class="participant-action"
+        href="{{ route('participants.show', ['peserta' => $participant, ...(request()->filled('jenis') ? ['jenis' => request('jenis')] : [])]) }}"
+    >Lihat</a>
     <button
         class="participant-action"
         type="button"
@@ -21,6 +24,9 @@
     >
         @csrf
         @method('DELETE')
+        @if (request()->filled('jenis'))
+            <input type="hidden" name="jenis" value="{{ request('jenis') }}">
+        @endif
         <button class="participant-action participant-action-danger" type="submit">Hapus</button>
     </form>
 </div>

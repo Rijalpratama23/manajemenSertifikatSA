@@ -146,10 +146,15 @@ class PesertaController extends Controller
                             ->orWhere('asal_instansi', 'like', "%{$search}%");
                     });
                 })
-                ->when($selectedType !== '', fn ($query) => $query->whereHas(
-                    'sertifikat',
-                    fn ($certificateQuery) => $certificateQuery->where('id_jenis', $selectedType),
-                ))
+                ->when($selectedType !== '', fn ($query) => $query->where(function ($query) use ($selectedType) {
+                    $query->whereHas(
+                        'sertifikat',
+                        fn ($certificateQuery) => $certificateQuery->where('id_jenis', $selectedType),
+                    )->orWhereHas(
+                        'jenisSertifikat',
+                        fn ($typeQuery) => $typeQuery->where('jenis_sertifikat.id_jenis', $selectedType),
+                    );
+                }))
                 ->orderBy('dibuat_pada', $sort === 'oldest' ? 'asc' : 'desc')
                 ->orderBy('id_peserta', $sort === 'oldest' ? 'asc' : 'desc')
                 ->paginate($perPage)
@@ -164,7 +169,7 @@ class PesertaController extends Controller
 
             $participants->getCollection()->transform(function (Peserta $participant) use ($courseNisByName) {
                 $course = $courseNisByName->get(strtolower(trim((string) $participant->nama)));
-                $participant->setAttribute('nis', $course?->nis);
+                $participant->setAttribute('nis', $course?->nis ?? $participant->nis);
                 $participant->setAttribute('source', 'peserta');
                 return $participant;
             });
@@ -249,7 +254,12 @@ class PesertaController extends Controller
         ]);
         $selectedType = $validated['jenis'] ?? null;
         unset($validated['jenis']);
-        Peserta::query()->create($validated);
+        DB::transaction(function () use ($validated, $selectedType) {
+            $participant = Peserta::query()->create($validated);
+            if ($selectedType) {
+                $participant->jenisSertifikat()->syncWithoutDetaching([$selectedType]);
+            }
+        });
 
         return redirect()->route('participants.index', $selectedType ? ['jenis' => $selectedType] : [])
             ->with('success', 'Data peserta berhasil ditambahkan.');
@@ -274,18 +284,33 @@ class PesertaController extends Controller
 
     public function update(Request $request, Peserta $peserta): RedirectResponse
     {
-        $validator = Validator::make($request->all(), $this->participantRules($peserta));
+        $typeId = $request->input('jenis');
+        $typeId = is_scalar($typeId) && is_numeric($typeId) ? (int) $typeId : null;
+        $selectedType = $typeId !== null
+            ? JenisSertifikat::query()->find($typeId, ['id_jenis'])
+            : null;
+        $validator = Validator::make($request->all(), [
+            ...$this->participantRules($peserta),
+            'jenis' => ['nullable', 'integer', Rule::exists('jenis_sertifikat', 'id_jenis')],
+        ]);
 
         if ($validator->fails()) {
+            $redirectParameters = ['edit' => $peserta->getKey()];
+            if ($selectedType) {
+                $redirectParameters['jenis'] = $selectedType->id_jenis;
+            }
+
             return redirect()
-                ->route('participants.index', ['edit' => $peserta->getKey()])
+                ->route('participants.index', $redirectParameters)
                 ->withErrors($validator)
                 ->withInput();
         }
 
         $attributes = $validator->validated();
+        $selectedTypeId = $attributes['jenis'] ?? null;
+        unset($attributes['jenis']);
         $previousNis = $peserta->nis;
-        DB::transaction(function () use ($peserta, $attributes, $previousNis) {
+        DB::transaction(function () use ($peserta, $attributes, $previousNis, $selectedTypeId) {
             if ($previousNis !== null && Schema::hasTable('kursus')) {
                 DB::table('kursus')
                     ->where('nis', $previousNis)
@@ -296,33 +321,48 @@ class PesertaController extends Controller
             }
 
             $peserta->update($attributes);
+            if ($selectedTypeId) {
+                $peserta->jenisSertifikat()->syncWithoutDetaching([$selectedTypeId]);
+            }
         });
 
-        return redirect()->route('participants.index')->with('success', 'Data peserta berhasil diperbarui.');
+        return redirect()
+            ->route('participants.index', $selectedTypeId ? ['jenis' => $selectedTypeId] : [])
+            ->with('success', 'Data peserta berhasil diperbarui.');
     }
 
-    public function destroy(Peserta $peserta): RedirectResponse
+    public function destroy(Request $request, Peserta $peserta): RedirectResponse
     {
+        $validated = $request->validate([
+            'jenis' => ['nullable', 'integer', Rule::exists('jenis_sertifikat', 'id_jenis')],
+        ]);
+        $selectedTypeId = $validated['jenis'] ?? null;
+
         if ($peserta->sertifikat()->exists()) {
-            return redirect()->route('participants.index')
+            return redirect()->route('participants.index', $selectedTypeId ? ['jenis' => $selectedTypeId] : [])
                 ->with('error', 'Peserta tidak dapat dihapus karena masih memiliki sertifikat.');
         }
 
         $peserta->delete();
 
-        return redirect()->route('participants.index')->with('success', 'Data peserta berhasil dihapus.');
+        return redirect()
+            ->route('participants.index', $selectedTypeId ? ['jenis' => $selectedTypeId] : [])
+            ->with('success', 'Data peserta berhasil dihapus.');
     }
 
     public function import(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+            'jenis' => ['nullable', 'integer', Rule::exists('jenis_sertifikat', 'id_jenis')],
         ]);
 
-        $import = new PesertaImport();
+        $import = new PesertaImport(isset($validated['jenis']) ? (int) $validated['jenis'] : null);
         Excel::import($import, $validated['file']);
 
-        return redirect()->route('participants.index')
+        $selectedType = $validated['jenis'] ?? null;
+
+        return redirect()->route('participants.index', $selectedType ? ['jenis' => $selectedType] : [])
             ->with('success', "{$import->importedCount()} data peserta berhasil diimpor.");
     }
 

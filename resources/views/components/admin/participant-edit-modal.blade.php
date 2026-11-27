@@ -13,7 +13,8 @@
         <x-admin.participant-form
             :participant="$editParticipant"
             :action="$editParticipant ? route('participants.update', $editParticipant) : route('participants.index')"
-            :cancel-url="route('participants.index')"
+            :cancel-url="route('participants.index', $selectedType !== '' ? ['jenis' => $selectedType] : [])"
+            :selected-type="$selectedType"
             method="PUT"
             submit-label="Simpan"
             :modal="true"

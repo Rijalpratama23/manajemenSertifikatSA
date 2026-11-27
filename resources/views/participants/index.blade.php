@@ -37,9 +37,12 @@
                 </form>
                 <div class="participants-action-group">
                     <button class="participant-primary-button" type="button" data-open-participant-modal>Tambah Peserta</button>
-                    <a class="participant-secondary-button" href="{{ route('participants.template.download') }}">Unduh Template</a>
+                    <a
+                        class="participant-secondary-button"
+                        href="{{ route('participants.template.download', $selectedType !== '' ? ['jenis' => $selectedType] : []) }}"
+                    >Unduh Template</a>
                 </div>
-                <x-admin.participant-import />
+                <x-admin.participant-import :selected-type="$selectedType" />
             </div>
         </header>
 
@@ -82,6 +85,9 @@
             :selected-type="$selectedType"
             :selected-certificate-type-name="$selectedCertificateTypeName"
         />
-        <x-admin.participant-edit-modal :edit-participant="$editParticipant" />
+        <x-admin.participant-edit-modal
+            :edit-participant="$editParticipant"
+            :selected-type="$selectedType"
+        />
     </div>
 </x-admin.layout>

@@ -15,6 +15,13 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class PesertaImport implements ToCollection, WithEvents, WithStartRow
 {
+    private ?int $certificateTypeId;
+
+    public function __construct(?int $certificateTypeId = null)
+    {
+        $this->certificateTypeId = $certificateTypeId;
+    }
+
     private int $importedCount = 0;
     private bool $shouldImportSheet = true;
     private array $columnIndexes = [
@@ -81,13 +88,14 @@ class PesertaImport implements ToCollection, WithEvents, WithStartRow
 
         $participants = [];
         $errors = [];
+        $nisRows = [];
 
         foreach ($rows as $index => $row) {
             $attributes = [
                 'nama' => $this->valueFromRow($row, 'nama'),
                 'email' => $this->valueFromRow($row, 'email') ?: null,
                 'asal_instansi' => $this->valueFromRow($row, 'asal_instansi') ?: null,
-                'nis' => $this->valueFromRow($row, 'nis') ?: null,
+                'nis' => $this->normalizeNis($this->valueFromRow($row, 'nis')) ?: null,
                 'tempat_lahir' => $this->valueFromRow($row, 'tempat_lahir') ?: null,
             ];
             $birthDateIndex = $this->columnIndexes['tanggal_lahir'];
@@ -124,10 +132,14 @@ class PesertaImport implements ToCollection, WithEvents, WithStartRow
 
             if ($validator->fails()) {
                 foreach ($validator->errors()->all() as $message) {
-                    $errors['Baris ' . ($index + 2)][] = $message;
+                    $errors[] = 'Baris ' . ($index + 2) . ': ' . $message;
                 }
 
                 continue;
+            }
+
+            if ($attributes['nis'] !== null) {
+                $nisRows[$attributes['nis']][] = $index + 2;
             }
 
             $participants[] = array_filter(
@@ -138,8 +150,14 @@ class PesertaImport implements ToCollection, WithEvents, WithStartRow
             );
         }
 
+        foreach ($nisRows as $nis => $rowNumbers) {
+            if (count($rowNumbers) > 1) {
+                $errors[] = 'NIS '.$nis.' digunakan berulang pada baris '.implode(', ', $rowNumbers).'. Setiap peserta harus memiliki NIS yang berbeda.';
+            }
+        }
+
         if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
+            throw ValidationException::withMessages(['import' => $errors]);
         }
 
         DB::transaction(function () use ($participants) {
@@ -154,7 +172,11 @@ class PesertaImport implements ToCollection, WithEvents, WithStartRow
                 if ($participant) {
                     $participant->update($attributes);
                 } else {
-                    Peserta::query()->create($attributes);
+                    $participant = Peserta::query()->create($attributes);
+                }
+
+                if ($this->certificateTypeId !== null) {
+                    $participant->jenisSertifikat()->syncWithoutDetaching([$this->certificateTypeId]);
                 }
             }
         });
@@ -171,5 +193,31 @@ class PesertaImport implements ToCollection, WithEvents, WithStartRow
     {
         $columnIndex = $this->columnIndexes[$field] ?? null;
         return $columnIndex === null ? '' : trim((string) ($row[$columnIndex] ?? ''));
+    }
+
+    private function normalizeNis(string $value): string
+    {
+        if (in_array($value, ['-', '–', '—'], true)) {
+            return '';
+        }
+
+        if (preg_match('/^\d+$/D', $value) === 1) {
+            return ltrim($value, '0') ?: '0';
+        }
+
+        if (
+            $value === ''
+            || ! is_numeric($value)
+            || (! str_contains($value, '.') && ! str_contains(strtolower($value), 'e'))
+        ) {
+            return $value;
+        }
+
+        $number = (float) $value;
+        if (! is_finite($number) || floor($number) !== $number || $number > PHP_INT_MAX) {
+            return $value;
+        }
+
+        return sprintf('%.0f', $number);
     }
 }

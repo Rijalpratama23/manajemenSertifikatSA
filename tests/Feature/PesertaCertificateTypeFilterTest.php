@@ -370,6 +370,48 @@ class PesertaCertificateTypeFilterTest extends TestCase
             });
     }
 
+    public function test_participant_view_update_and_delete_keep_the_selected_certificate_type(): void
+    {
+        $admin = Admin::query()->create([
+            'nama' => 'Admin Test',
+            'username' => 'admin-participant-actions-type-test',
+            'password_hash' => 'password',
+        ]);
+        $type = $this->createCertificateType('MAGANG', 'Magang');
+        $participant = $this->createParticipant('Peserta Magang', 'magang-action@example.test');
+        $participant->jenisSertifikat()->attach($type->id_jenis);
+        $typeFilter = ['jenis' => $type->id_jenis];
+
+        $this->actingAs($admin)
+            ->get(route('participants.index', $typeFilter))
+            ->assertOk()
+            ->assertSee(
+                route('participants.show', ['peserta' => $participant, ...$typeFilter]),
+                false,
+            )
+            ->assertSee('name="jenis" value="'.$type->id_jenis.'"', false);
+
+        $this->get(route('participants.show', ['peserta' => $participant, ...$typeFilter]))
+            ->assertOk()
+            ->assertSee(route('participants.index', $typeFilter), false)
+            ->assertSee(route('participants.edit', ['peserta' => $participant, ...$typeFilter]), false);
+
+        $this->put(route('participants.update', $participant), [
+            ...$typeFilter,
+            'nama' => 'Peserta Magang Diperbarui',
+            'nis' => '',
+            'tempat_lahir' => '',
+            'tanggal_lahir' => '',
+            'email' => 'magang-action@example.test',
+            'asal_instansi' => 'Universitas Contoh',
+        ])->assertRedirect(route('participants.index', $typeFilter));
+
+        $this->delete(route('participants.destroy', $participant), $typeFilter)
+            ->assertRedirect(route('participants.index', $typeFilter));
+
+        $this->assertDatabaseMissing('peserta', ['id_peserta' => $participant->id_peserta]);
+    }
+
     private function createParticipant(string $name, string $email): Peserta
     {
         return Peserta::query()->create([

@@ -6,8 +6,14 @@
                 <p>Informasi peserta dan sertifikat yang telah diterbitkan.</p>
             </div>
             <div class="participant-detail-header-actions">
-                <a class="participant-secondary-button" href="{{ route('participants.index') }}">Kembali</a>
-                <a class="participant-primary-button" href="{{ route('participants.edit', $peserta) }}">Ubah Peserta</a>
+                <a
+                    class="participant-secondary-button"
+                    href="{{ route('participants.index', request()->filled('jenis') ? ['jenis' => request('jenis')] : []) }}"
+                >Kembali</a>
+                <a
+                    class="participant-primary-button"
+                    href="{{ route('participants.edit', ['peserta' => $peserta, ...(request()->filled('jenis') ? ['jenis' => request('jenis')] : [])]) }}"
+                >Ubah Peserta</a>
             </div>
         </header>
 
